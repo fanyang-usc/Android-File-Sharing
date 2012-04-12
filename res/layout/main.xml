@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical" >
+
+    <TextView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:text="@string/hello" />
+ 
+    <LinearLayout 
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+	    android:layout_height="wrap_content">
+	    <ImageView
+	        android:id="@+id/icon"
+	        android:layout_width="wrap_content"
+	        android:layout_height="fill_parent"
+	        android:layout_marginRight="2dip"
+	        android:src="@drawable/ic_launcher"/>"
+	    <TextView
+	        android:id="@+id/mystatus"
+	        android:layout_width="fill_parent"
+	        android:layout_height="55dp"
+	        android:text="My name: Unknown. \nMy Address: Unknown. \nMy status: Unknown." />
+    </LinearLayout>
+    <Button 
+        android:id="@+id/Search" 
+        android:layout_width="match_parent" 
+        android:layout_height="wrap_content" 
+        android:text="@string/search"
+        android:onClick="searchButton"
+        />
+	<fragment 
+        android:id="@+id/devicelist" 
+        android:name="com.edu.usc.ee579.DeviceListFragment" 
+        android:layout_width="match_parent" 
+        android:layout_height="match_parent"/>
+	<fragment 
+	    android:id="@+id/devicedetail" 
+	    android:name="com.edu.usc.ee579.DeviceDetailFragment" 
+	    android:layout_width="match_parent" 
+	    android:layout_height="match_parent"/>
+</LinearLayout>

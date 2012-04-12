@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="hello">My Device</string>
+    <string name="app_name">WiFi Direct File Sharing!</string>
+	<string name="search">Search Peers</string>
+</resources>
