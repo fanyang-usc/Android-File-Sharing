@@ -15,12 +15,16 @@ import android.net.wifi.p2p.WifiP2pManager.Channel;
 import android.net.wifi.p2p.WifiP2pManager.ChannelListener;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class EE579Activity extends Activity implements ChannelListener{
     /** Called when the activity is first created. */
+
     private WifiP2pManager manager;
     private Channel channel;
     private BroadcastReceiver receiver;
@@ -57,6 +61,26 @@ public class EE579Activity extends Activity implements ChannelListener{
         super.onPause();
         unregisterReceiver(receiver);
     }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menuitem, menu);
+        return true;
+    }
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.exit: 
+        	disconnect();
+        	cancelDisconnect();
+        	unregisterReceiver(receiver);
+        	this.finish();
+        	System.exit(0);
+        	return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
 
     
     public void setIsWifiP2pEnabled(boolean isWifiP2pEnabled) {
@@ -85,11 +109,11 @@ public class EE579Activity extends Activity implements ChannelListener{
             }).show();
             return;
         }
-        DeviceDetailFragment devicefragment = (DeviceDetailFragment)getFragmentManager().findFragmentById(R.id.devicedetail);
+/*        DeviceDetailFragment devicefragment = (DeviceDetailFragment)getFragmentManager().findFragmentById(R.id.devicedetail);
 	if(devicefragment.device!=null&&devicefragment.isConnected){
 	    showMessage("Please disconnect the current connection first.");
 	    return;
-	}
+	}*/
 	final DeviceListFragment fragment = (DeviceListFragment) getFragmentManager()
 	                .findFragmentById(R.id.devicelist);
 	fragment.onInitiateDiscovery();

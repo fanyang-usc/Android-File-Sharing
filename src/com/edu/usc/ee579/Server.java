@@ -1,18 +1,15 @@
 package com.edu.usc.ee579;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import android.app.Activity;
 import android.os.AsyncTask;
-import android.os.Bundle;
-import android.util.Log;
-import android.widget.TextView;
+import android.os.Handler;
+import android.os.Message;
 
 public class Server extends AsyncTask<Void, Void, String> {
     private ServerSocket serverSocket = null;
@@ -20,81 +17,104 @@ public class Server extends AsyncTask<Void, Void, String> {
     private Socket clientSocket = null;
     private OutputStream outToClient = null;
     private BufferedReader inFromClient = null;
-    private EE579Activity activity;
-    private TextView textView=null;
-    
+    Handler myHandler=null;
     @Override
     protected String doInBackground(Void... arg0) {
 	if(!initializeServer(serverPort)){
-	    showMessage("Error.");
-	    System.exit(-1);
+	    showMessage("Server Error.");
+	    return null;
 	}
-	//showMessage(readMessage());
-	Log.d("EE579", readMessage());
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	readMessage();
+	sendMessage("Hello too!");
+	
 	closeConnection();
 	return null;
     }
     @Override
     protected void onPreExecute() {
-        showMessage("Started.");
+        showMessage("Server: Started.");
     }
     protected void onPostExecute(String result) {
-	showMessage("Finished.");
+	showMessage("Server: Finished.");
     }
 
-    public Server(TextView textView) {
-	this.textView=textView;
+    public Server(Handler myHandler) {
+	this.myHandler=myHandler;
     }
     
     //functions from diagnostic test to initialize a server
-    public Server(int serverPort,TextView textView) {
+    public Server(int serverPort,Handler myHandler) {
       this.serverPort = serverPort;
-      this.textView=textView;
+      this.myHandler=myHandler;
     }
     private boolean initializeServer(int serverPort) {
 	try {
 	    serverSocket = new ServerSocket(serverPort); 
-	    //showMessage("Socket Created.");
+	    showMessage("Server: Socket Created.");
 	} catch (IOException e) {
-	    textView.setText("Server Error: Could not listen on port: "+serverPort);
+	    showMessage("Server Error: Could not listen on port: "+serverPort);
 	    return false;
 	} 
 	try {
-	    //showMessage("Waiting for Client.");
+	    showMessage("Server: Waiting for Client.");
 	    clientSocket = serverSocket.accept();
-	    //showMessage("Client Accepted");
+	    showMessage("Server: Client Accepted");
 	} catch (IOException e) {
-	    textView.setText("Server Error: Accept failed.");
+	    showMessage("Server Error: Accept failed.");
 	    return false;
 	}
 	try {
 	    //get streams for socket and create files to keep data.	
 	    outToClient = clientSocket.getOutputStream();
 	    inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-	    //showMessage("Stream Created.");
 	} catch (IOException e) {
-	    textView.setText("Server Error: I/O error for the connection");
+	    showMessage("Server Error: I/O error for the connection");
 	    return false;
 	} 
 	return true;
     }
     public void sendMessage(String msg){
+	showMessage("Server: "+msg);
 	msg+="\n"; 
 	try {
 	    outToClient.write(msg.getBytes());
+	    outToClient.flush();
 	} catch (IOException e) {
-	    textView.setText("Server Error: IO Error.");
+	    showMessage("Server Error: IO Error.");
 	}
     }
     public String readMessage(){
 	try {
-	    return inFromClient.readLine();
+	    String buffer=inFromClient.readLine();
+	    showMessage("Client: "+buffer);
+	    return buffer;
 	} catch (IOException e) {
 	    return null;
 	}
     }
     public void showMessage(String str){
-	textView.setText(textView.getText()+"\nServer: "+str);
+	//str.replace('\n', '\0');
+	Message msg=new Message();
+	msg.obj=(Object)str;
+	myHandler.sendMessage(msg);
 	return;
     }
     public boolean closeConnection() {
@@ -102,7 +122,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	    serverSocket.close();
 	    return true;
 	}catch(IOException e) {
-	    textView.setText("Server Error: IO Error.");
+	    showMessage("Server Error: IO Error.");
 	    return false;
 	}
     }

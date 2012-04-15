@@ -8,61 +8,66 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 
 import android.os.AsyncTask;
-import android.widget.TextView;
+import android.os.Handler;
+import android.os.Message;
 
 public class Client extends AsyncTask<Void, Void, String>{
     private OutputStream outToServer = null;
     private BufferedReader inFromServer= null;
     private Socket clientSocket = null;
-    private EE579Activity activity;
     private int numberOfTry=0;
     private String serverIP=null;
     private int serverPort=0;
-    private TextView textView=null;
+    Handler myHandler=null;
     
-    public Client(String serverIP, int serverPort, TextView textView) {
+    public Client(String serverIP, int serverPort, Handler myHandler) {
 	this.serverIP=serverIP;
 	this.serverPort=serverPort;
-	this.textView=textView;
+	this.myHandler=myHandler;
     }
     private boolean initializeClient(String serverIP, int serverPort) {
 	try {
 	    numberOfTry++;
 	    clientSocket = new Socket(serverIP, serverPort); 
-	    //showMessage("Socket created.");
+	    showMessage("Client: Socket created.");
 	    outToServer = clientSocket.getOutputStream();   
 	    inFromServer =  new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 	    return true;
 	} catch (UnknownHostException e) {                   
 	    if(numberOfTry<10) initializeClient(serverIP, serverPort);
-	    else textView.setText("Client: Cannot Connect to the Server after 10 attempts");
+	    else showMessage("Client Error: Cannot Connect to the Server after 10 attempts");
 	    return false;
 	} catch (IOException e) {
-	    //textView.setText("Client: IO Error.");
+	    showMessage("Client Error: IO Error.");
 	    return false;
 	}
     }
-    public void sendMessage(String msg){           
+    public void sendMessage(String msg){  
+	showMessage("Client: "+msg);
 	try {
 	    msg+="\n";
 	    outToServer.write(msg.getBytes());
-	    outToServer.flush();
-	    //showMessage(msg);
+	    outToServer.flush();	    
 	} catch (IOException e) {
-	    textView.setText("Client: IO Error.");
+	    showMessage("Client Error: IO Error.");
 	} 
 	
     }
     public String readMessage(){  
 	try {
-	    return inFromServer.readLine();
+	    String buffer=inFromServer.readLine();
+	    showMessage("Server: "+buffer);
+	    return buffer;
 	} catch (IOException e) {
-	    textView.setText("Client: IO Error.");
+	    showMessage("Client Error: IO Error.");
 	    return null;
 	}	
     }
     public void showMessage(String str){
-	textView.setText(textView.getText()+"\nClient: "+str);
+	//str.replace('\n', '\0');
+	Message msg=new Message();
+	msg.obj=(Object)str;
+	myHandler.sendMessage(msg);
 	return;
     }
     public boolean closeConnection() {
@@ -70,17 +75,42 @@ public class Client extends AsyncTask<Void, Void, String>{
 	    clientSocket.close();
 	    return true;
 	}catch(IOException e) {
-	    textView.setText("Client: IO Error.");
+	    showMessage("Client Error: IO Error.");
 	    return false;
 	}
     }
     @Override
     protected String doInBackground(Void... arg0) {
 	if(!initializeClient(serverIP, serverPort)){
-	    //textView.setText("Client Error.");
-	    System.exit(-1);
+	    showMessage("Client Error.");
+	    return null;
 	}
-	sendMessage("Hello.");
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
+	sendMessage("Hello!");
+	readMessage();
 	closeConnection();
 	return null;
     }
