@@ -1,8 +1,7 @@
 package com.edu.usc.ee579;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -16,38 +15,54 @@ public class Server extends AsyncTask<Void, Void, String> {
     private int serverPort = 9777;
     private Socket clientSocket = null;
     private OutputStream outToClient = null;
-    private BufferedReader inFromClient = null;
+    private InputStream inFromClient = null;
     Handler myHandler=null;
+    
+    //use asynctast to do the client/server. All functions are done in background
     @Override
     protected String doInBackground(Void... arg0) {
+	//initialize server
 	if(!initializeServer(serverPort)){
 	    showMessage("Server Error.");
 	    return null;
 	}
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	readMessage();
-	sendMessage("Hello too!");
-	
+	while(true){
+	    //use packet class to build packet and read a packet from client
+	    Packet packet=readMessage();
+	    if(packet==null){
+		showMessage("Server Error.");
+		break;
+	    }
+	    //respond accordingly to the message get from client
+	    if(packet.getMessageType()==1){
+		showMessage("Client: The Files I need are: "+packet.getMessage());
+		String result="3,4,5";//Query.checkAvailablility(packet.getMessage(),fileTable);
+		if(result==null)
+		    sendMessage(2,0,0,"None");
+		else
+		    sendMessage(2,0,0,result);
+	    }else if(packet.getMessageType()==3){
+		int index=packet.getFileNum();
+		showMessage("Client: The Chunks I need in File No."+index+" are: "+packet.getMessage());
+		String result="242";//Query.checkAvailablility(packet.getMessage(),fileTable);
+		if(result==null)
+		    sendMessage(4,packet.getFileNum(),0,"None");
+		else
+		    sendMessage(4,packet.getFileNum(),0,result);
+	    }else if(packet.getMessageType()==5){
+		showMessage("Client: I need File No."+packet.getFileNum()+" Chunk No. "+packet.getChunkNum());
+		sendFile(6,packet.getFileNum(),packet.getChunkNum(),"Tranfer".getBytes());
+	    }else if(packet.getMessageType()==7){
+		break;
+	    }else{
+		showMessage("Wrong Packet.");
+		break;
+	    }
+	}
 	closeConnection();
 	return null;
     }
+    
     @Override
     protected void onPreExecute() {
         showMessage("Server: Started.");
@@ -60,21 +75,22 @@ public class Server extends AsyncTask<Void, Void, String> {
 	this.myHandler=myHandler;
     }
     
-    //functions from diagnostic test to initialize a server
     public Server(int serverPort,Handler myHandler) {
       this.serverPort = serverPort;
       this.myHandler=myHandler;
     }
+    
     private boolean initializeServer(int serverPort) {
 	try {
+	    //create serversocket
 	    serverSocket = new ServerSocket(serverPort); 
-	    showMessage("Server: Socket Created.");
+	    //showMessage("Server: Socket Created.");
 	} catch (IOException e) {
 	    showMessage("Server Error: Could not listen on port: "+serverPort);
 	    return false;
 	} 
 	try {
-	    showMessage("Server: Waiting for Client.");
+	    //showMessage("Server: Waiting for Client.");
 	    clientSocket = serverSocket.accept();
 	    showMessage("Server: Client Accepted");
 	} catch (IOException e) {
@@ -82,34 +98,53 @@ public class Server extends AsyncTask<Void, Void, String> {
 	    return false;
 	}
 	try {
-	    //get streams for socket and create files to keep data.	
+	    //get streams for socket.	
 	    outToClient = clientSocket.getOutputStream();
-	    inFromClient = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+	    inFromClient = clientSocket.getInputStream();
 	} catch (IOException e) {
 	    showMessage("Server Error: I/O error for the connection");
 	    return false;
 	} 
 	return true;
     }
-    public void sendMessage(String msg){
-	showMessage("Server: "+msg);
-	msg+="\n"; 
-	try {
-	    outToClient.write(msg.getBytes());
-	    outToClient.flush();
-	} catch (IOException e) {
-	    showMessage("Server Error: IO Error.");
+    
+    //send message to client and show them on screen
+    public void sendMessage(int msgType, int fileNum, int chunkNum, String msg){
+	if(msgType==2){
+	    showMessage("Server: The files I have are: "+msg);
+	}else if(msgType==4){
+	    showMessage("Server: The chunks I have in File No."+fileNum+" are: "+msg);
+	}else if(msgType==6){
+	    showMessage("Server: Sending File No."+fileNum+" Chunk No."+chunkNum);
+	}else{
+	    showMessage("Wrong Message.");
+	}
+	Packet packet=new Packet(msgType, fileNum, chunkNum, msg.getBytes());
+	if(!packet.sendPacket(outToClient)){
+	    showMessage("Server Error: Send Message Error.");
 	}
     }
-    public String readMessage(){
-	try {
-	    String buffer=inFromClient.readLine();
-	    showMessage("Client: "+buffer);
-	    return buffer;
-	} catch (IOException e) {
+    
+    //function for file transfer
+    public void sendFile(int msgType, int fileNum, int chunkNum, byte[] msg){
+	showMessage("Transfering File No."+fileNum+" Chunk No."+chunkNum);
+	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
+	packet.sendPacket(outToClient);
+    }
+    
+    //read message from client and cast into packet.
+    public Packet readMessage(){
+	Packet packet=new Packet();
+	if(packet.readPacket(inFromClient)){
+		return packet;
+	}
+	else{
+	    showMessage("Server Error: Read Message Error.");
 	    return null;
 	}
     }
+    
+    //use handler to show message on UI Thread
     public void showMessage(String str){
 	//str.replace('\n', '\0');
 	Message msg=new Message();
@@ -117,6 +152,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	myHandler.sendMessage(msg);
 	return;
     }
+    
     public boolean closeConnection() {
 	try {
 	    serverSocket.close();

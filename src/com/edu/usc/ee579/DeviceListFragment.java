@@ -22,6 +22,8 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
     private List<WifiP2pDevice> peerList = new ArrayList<WifiP2pDevice>();
     View myContentView = null;
     ProgressDialog progressDialog=null;
+    
+    //callback function when searching is done.
     @Override
     public void onPeersAvailable(WifiP2pDeviceList peers) {
         if (progressDialog != null && progressDialog.isShowing()) {
@@ -29,6 +31,7 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
         }
 	myContentView.findViewById(R.id.peerlisttext).setVisibility(View.VISIBLE);
 	peerList.clear();
+	//use a list view to update the result.
 	peerList.addAll(peers.getDeviceList());
 	((WiFiPeerListAdapter) getListAdapter()).notifyDataSetChanged();
 	if (peerList.size() == 0) {
@@ -36,6 +39,8 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
 	}
 	return;
     }
+    
+    //layout for the fragment
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
@@ -49,6 +54,7 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
         return myContentView;
     }
  
+    //list adapter for the list view. update the device list when there are changes.
     private class WiFiPeerListAdapter extends ArrayAdapter<WifiP2pDevice> {
         private List<WifiP2pDevice> items;
 
@@ -77,6 +83,7 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
         }
     }
     
+    //call when clicking on the list items. will bring out the device detail info.
     @Override
     public void onListItemClick(ListView l, View v, int position, long id) {
         WifiP2pDevice device = (WifiP2pDevice) getListAdapter().getItem(position);
@@ -86,6 +93,7 @@ public class DeviceListFragment extends ListFragment implements PeerListListener
         return;
     }
 
+    //show a process dialog when clicking the search button.
     public void onInitiateDiscovery() {
         if (progressDialog != null && progressDialog.isShowing()) {
             progressDialog.dismiss();

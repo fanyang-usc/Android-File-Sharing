@@ -63,7 +63,7 @@ public class WiFiDirectBroadcastReceiver extends BroadcastReceiver {
         	//fragment.showDetails(device);
                 manager.requestConnectionInfo(channel, fragment);
             } else {
-                // It's a disconnect
+                // It's a disconnect. back to main menu
         	final DeviceListFragment listfragment = (DeviceListFragment) activity.getFragmentManager().findFragmentById(R.id.devicelist);
         	listfragment.getView().setVisibility(View.VISIBLE);
                 final DeviceDetailFragment fragment = (DeviceDetailFragment) activity.getFragmentManager()

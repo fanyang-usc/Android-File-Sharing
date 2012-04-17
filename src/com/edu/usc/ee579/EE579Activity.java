@@ -38,11 +38,13 @@ public class EE579Activity extends Activity implements ChannelListener{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
+        //register for the events we want to capture 
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         
+        //create necessary manager and channel
         manager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
         channel = manager.initialize(this, getMainLooper(), null);
         receiver = new WiFiDirectBroadcastReceiver(manager, channel, this);
@@ -61,6 +63,8 @@ public class EE579Activity extends Activity implements ChannelListener{
         super.onPause();
         unregisterReceiver(receiver);
     }
+    
+    //create option menu. now there is only a close button. may add more in the future.
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
@@ -82,22 +86,26 @@ public class EE579Activity extends Activity implements ChannelListener{
         }
     }
 
-    
+    //indicate the wifi direct state
     public void setIsWifiP2pEnabled(boolean isWifiP2pEnabled) {
         this.isWifiP2pEnabled = isWifiP2pEnabled;
         return;
     }
     
+    //to use a toast to show message on screen 
     public void showMessage(String str){
 	Toast.makeText(CONTEXT, str,Toast.LENGTH_SHORT).show();
     }
     
+    //function to be called when search button is clicked.
     public void searchButton(View view){
 	searchPeer();
 	return;
     }
     
+    //function to perform the wifi direct search
     public void searchPeer(){
+	//check if wifi direct is enabled
         if(!isWifiP2pEnabled){
             new AlertDialog.Builder(this)
             .setIcon(R.drawable.ic_launcher)
@@ -114,6 +122,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 	    showMessage("Please disconnect the current connection first.");
 	    return;
 	}*/
+        //use fragment class to display all devices
 	final DeviceListFragment fragment = (DeviceListFragment) getFragmentManager()
 	                .findFragmentById(R.id.devicelist);
 	fragment.onInitiateDiscovery();
@@ -132,6 +141,7 @@ public class EE579Activity extends Activity implements ChannelListener{
          });
     }
 
+    //map the status code with words
     public static String getDeviceStatus(int deviceStatus) {
         switch (deviceStatus) {
             case WifiP2pDevice.AVAILABLE:
@@ -150,12 +160,14 @@ public class EE579Activity extends Activity implements ChannelListener{
         }
     }
     
+    //show device info on screen
     public void updateThisDevice(WifiP2pDevice device) {
         TextView view = (TextView)findViewById(R.id.mystatus);
         view.setText("My Name: "+device.deviceName+"\nMy Address: "+device.deviceAddress+"\nMy Status: "+getDeviceStatus(device.status));
         return;
     }
     
+    //wifi direct connect function
     public void connect(WifiP2pConfig config){
 	 manager.connect(channel, config, new ActionListener() {
 	     @Override
@@ -170,7 +182,8 @@ public class EE579Activity extends Activity implements ChannelListener{
 	 });           
 	 return;
     }
-    
+ 
+    //wifi direct disconnect function
     public void disconnect(){
         final DeviceDetailFragment fragment = (DeviceDetailFragment) getFragmentManager()
                 .findFragmentById(R.id.devicedetail);
@@ -190,6 +203,7 @@ public class EE579Activity extends Activity implements ChannelListener{
         return;
     }
     
+    //prevent channel lose
     @Override
     public void onChannelDisconnected() {
         if (manager != null && !retryChannel) {
@@ -201,9 +215,10 @@ public class EE579Activity extends Activity implements ChannelListener{
                     "Channel is probably lost premanently. Try Disable/Re-Enable P2P.",
                     Toast.LENGTH_LONG).show();
         }
-        return;
-	
+        return;	
     }
+    
+    //cancel ongoing connect action
     public void cancelDisconnect() {
         if (manager != null) {
             final DeviceDetailFragment fragment = (DeviceDetailFragment) getFragmentManager()

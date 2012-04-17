@@ -23,30 +23,35 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
     private View myContentView = null;
     WifiP2pDevice device=null;
     private ProgressDialog progressDialog=null;
-    private WifiP2pInfo info=null;
+    //private WifiP2pInfo info=null;
     private Server server=null;
     private Client client=null;
     boolean isConnected=false;
     TextView textView=null;
     ScrollView scroll=null;
+    
+    //call back function when connection is setup
     @Override
     public void onConnectionInfoAvailable(WifiP2pInfo info) {
         if (progressDialog != null && progressDialog.isShowing()) {
             progressDialog.dismiss();
         }
-        this.info = info;
+        //this.info = info;
+        //change display layout
         if(this.getView().getVisibility()!=View.VISIBLE) this.getView().setVisibility(View.VISIBLE);   
 	myContentView.findViewById(R.id.connect).setVisibility(View.GONE);
 	myContentView.findViewById(R.id.disconnect).setVisibility(View.VISIBLE);
 	isConnected=true;
 	textView = (TextView) myContentView.findViewById(R.id.peerdevice);
 	scroll=(ScrollView) myContentView.findViewById(R.id.scrollView1);
+	//set a handler for client/server to show messages
 	Handler myHandler = new Handler() {  
 	    public void handleMessage(Message msg) {   
 		textView.setText(textView.getText()+"\n"+(String)msg.obj);           	
             	scroll.fullScroll (ScrollView.FOCUS_DOWN);
 		}     
 	    };  
+	//group owner will become a server and otherwise client    
 	if(info.groupFormed &&info.isGroupOwner){
 	    textView.setText("Connected. IP Address: "+info.groupOwnerAddress.getHostAddress());
 	    server= new Server(myHandler);	
@@ -59,6 +64,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
 	return;
     }
     
+    //layout for the fragment
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
@@ -68,6 +74,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         myContentView = inflater.inflate(R.layout.devicedetail, null);
+        //set the buttons
         myContentView.findViewById(R.id.connect).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -110,6 +117,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         return myContentView;
     }
 
+    //show device info
     public void showDetails(WifiP2pDevice device){
         this.device = device;
         this.getView().setVisibility(View.VISIBLE);
@@ -118,6 +126,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         return;
     }
     
+    //clear the device info when disconnect
     public void blockDetail() {
         myContentView.findViewById(R.id.connect).setVisibility(View.VISIBLE);
         myContentView.findViewById(R.id.disconnect).setVisibility(View.GONE);

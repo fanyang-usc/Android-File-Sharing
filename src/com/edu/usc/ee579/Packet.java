@@ -11,7 +11,7 @@ public class Packet{
     private int totalLength;
     private int fileNum;
     private int chunkNum;
-    private byte[] packet=new byte[100020];
+    private byte[] packet;
     private final int MSGTYPELENGTH = 4; //length of the APITYPE field in bytes
     private final int TOTALLENLENGTH = 4; //length of the TOTALLEN field in bytes
     private final int MSGLEN_LENGTH = 4; //length of the MSG_LEN field in bytes
@@ -26,18 +26,18 @@ public class Packet{
 	    this.chunkNum=chunkNum;
 	    msgLength = msg.length;
 	    totalLength =HEADERLEG + msgLength;
+	    packet=new byte[totalLength];
 	    byte[] msgTypeByte= intToBytes(msgType);
 	    byte[] msgLenByte= intToBytes(msgLength);
 	    byte[] totalLenByte= intToBytes(totalLength);
 	    byte[] fileNumByte= intToBytes(fileNum);
 	    byte[] chunkNumByte= intToBytes(chunkNum);
-	    byte[] messageByte= msg;
 	    for(int i=0;i<4;i++) packet[i]=msgTypeByte[i];
 	    for(int i=0;i<4;i++) packet[i+4]=totalLenByte[i];
 	    for(int i=0;i<4;i++) packet[i+8]=msgLenByte[i];
 	    for(int i=0;i<4;i++) packet[i+12]=fileNumByte[i];
 	    for(int i=0;i<4;i++) packet[i+16]=chunkNumByte[i];
-	    for(int i=0;i<msgLength;i++) packet[i+20]=messageByte[i]; 
+	    for(int i=0;i<msgLength;i++) packet[i+20]=msg[i]; 
     }
     
     public Packet() {
@@ -69,6 +69,7 @@ public class Packet{
     
     public boolean readPacket(InputStream inFromBuffer) {
 	try {
+	    packet=new byte[100020];
 	    int numOfByteRead=inFromBuffer.read(packet);
 	    byte[] msgTypeByte= new byte[4];
 	    byte[] msgLenByte= new byte[4];
@@ -99,6 +100,7 @@ public class Packet{
     public boolean sendPacket(OutputStream out){
 	try {
 	    out.write(packet);
+	    out.flush();
 	} catch (IOException e) {
 	    return false;
 	}
