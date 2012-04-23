@@ -20,24 +20,24 @@ public class Packet{
     private final int HEADERLEG=MSGTYPELENGTH+TOTALLENLENGTH+FILENUMLENGTH+CHUNKNUMLENGTH+MSGLEN_LENGTH;
 
     public Packet(int msgType, int fileNum, int chunkNum, byte[] msg) {
-	    this.msg = msg;
-	    this.msgType=msgType;
-	    this.fileNum=fileNum;
-	    this.chunkNum=chunkNum;
-	    msgLength = msg.length;
-	    totalLength =HEADERLEG + msgLength;
-	    packet=new byte[totalLength];
-	    byte[] msgTypeByte= intToBytes(msgType);
-	    byte[] msgLenByte= intToBytes(msgLength);
-	    byte[] totalLenByte= intToBytes(totalLength);
-	    byte[] fileNumByte= intToBytes(fileNum);
-	    byte[] chunkNumByte= intToBytes(chunkNum);
-	    for(int i=0;i<4;i++) packet[i]=msgTypeByte[i];
-	    for(int i=0;i<4;i++) packet[i+4]=totalLenByte[i];
-	    for(int i=0;i<4;i++) packet[i+8]=msgLenByte[i];
-	    for(int i=0;i<4;i++) packet[i+12]=fileNumByte[i];
-	    for(int i=0;i<4;i++) packet[i+16]=chunkNumByte[i];
-	    for(int i=0;i<msgLength;i++) packet[i+20]=msg[i]; 
+	this.msg = msg;
+	this.msgType=msgType;
+	this.fileNum=fileNum;
+	this.chunkNum=chunkNum;
+	msgLength = msg.length;
+	totalLength =HEADERLEG + msgLength;
+	packet=new byte[totalLength];
+	byte[] msgTypeByte= intToBytes(msgType);
+	byte[] msgLenByte= intToBytes(msgLength);
+	byte[] totalLenByte= intToBytes(totalLength);
+	byte[] fileNumByte= intToBytes(fileNum);
+	byte[] chunkNumByte= intToBytes(chunkNum);
+	for(int i=0;i<4;i++) packet[i]=msgTypeByte[i];
+	for(int i=0;i<4;i++) packet[i+4]=totalLenByte[i];
+	for(int i=0;i<4;i++) packet[i+8]=msgLenByte[i];
+	for(int i=0;i<4;i++) packet[i+12]=fileNumByte[i];
+	for(int i=0;i<4;i++) packet[i+16]=chunkNumByte[i];
+	for(int i=0;i<msgLength;i++) packet[i+20]=msg[i]; 
     }
     
     public Packet() {
@@ -50,7 +50,9 @@ public class Packet{
     public String getMessage() {
 	return new String(msg);
     }
-
+    public byte[] getMessageByte(){
+	return msg;
+    }
     public int getMessageLength() {
 	return msgLength;
     }
@@ -69,7 +71,7 @@ public class Packet{
     
     public boolean readPacket(InputStream inFromBuffer) {
 	try {
-	    packet=new byte[100020];
+	    packet=new byte[20+EE579Activity.BYTESPERCHUNK];
 	    int numOfByteRead=inFromBuffer.read(packet);
 	    byte[] msgTypeByte= new byte[4];
 	    byte[] msgLenByte= new byte[4];

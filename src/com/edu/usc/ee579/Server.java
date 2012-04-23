@@ -1,10 +1,16 @@
 package com.edu.usc.ee579;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
 
 import android.os.AsyncTask;
 import android.os.Handler;
@@ -17,69 +23,16 @@ public class Server extends AsyncTask<Void, Void, String> {
     private OutputStream outToClient = null;
     private InputStream inFromClient = null;
     Handler myHandler=null;
-    
-    //use asynctast to do the client/server. All functions are done in background
-    @Override
-    protected String doInBackground(Void... arg0) {
-	//initialize server
-	if(!initializeServer(serverPort)){
-	    showMessage("Server Error.");
-	    return null;
-	}
-	while(true){
-	    //use packet class to build packet and read a packet from client
-	    Packet packet=readMessage();
-	    if(packet==null){
-		showMessage("Server Error.");
-		break;
-	    }
-	    //respond accordingly to the message get from client
-	    if(packet.getMessageType()==1){
-		showMessage("Client: The Files I need are: "+packet.getMessage());
-		String result="3,4,5";//Query.checkAvailablility(packet.getMessage(),fileTable);
-		if(result==null)
-		    sendMessage(2,0,0,"None");
-		else
-		    sendMessage(2,0,0,result);
-	    }else if(packet.getMessageType()==3){
-		int index=packet.getFileNum();
-		showMessage("Client: The Chunks I need in File No."+index+" are: "+packet.getMessage());
-		String result="242";//Query.checkAvailablility(packet.getMessage(),fileTable);
-		if(result==null)
-		    sendMessage(4,packet.getFileNum(),0,"None");
-		else
-		    sendMessage(4,packet.getFileNum(),0,result);
-	    }else if(packet.getMessageType()==5){
-		showMessage("Client: I need File No."+packet.getFileNum()+" Chunk No. "+packet.getChunkNum());
-		sendFile(6,packet.getFileNum(),packet.getChunkNum(),"Tranfer".getBytes());
-	    }else if(packet.getMessageType()==7){
-		break;
-	    }else{
-		showMessage("Wrong Packet.");
-		break;
-	    }
-	}
-	closeConnection();
-	return null;
-    }
-    
-    @Override
-    protected void onPreExecute() {
-        showMessage("Server: Started.");
-    }
-    protected void onPostExecute(String result) {
-	showMessage("Server: Finished.");
-    }
 
     public Server(Handler myHandler) {
 	this.myHandler=myHandler;
     }
-    
+
     public Server(int serverPort,Handler myHandler) {
-      this.serverPort = serverPort;
-      this.myHandler=myHandler;
+	this.serverPort = serverPort;
+	this.myHandler=myHandler;
     }
-    
+
     private boolean initializeServer(int serverPort) {
 	try {
 	    //create serversocket
@@ -107,40 +60,14 @@ public class Server extends AsyncTask<Void, Void, String> {
 	} 
 	return true;
     }
-    
-    //send message to client and show them on screen
-    public void sendMessage(int msgType, int fileNum, int chunkNum, String msg){
-	if(msgType==2){
-	    showMessage("Server: The files I have are: "+msg);
-	}else if(msgType==4){
-	    showMessage("Server: The chunks I have in File No."+fileNum+" are: "+msg);
-	}else if(msgType==6){
-	    showMessage("Server: Sending File No."+fileNum+" Chunk No."+chunkNum);
-	}else{
-	    showMessage("Wrong Message.");
-	}
-	Packet packet=new Packet(msgType, fileNum, chunkNum, msg.getBytes());
-	if(!packet.sendPacket(outToClient)){
-	    showMessage("Server Error: Send Message Error.");
-	}
-    }
-    
-    //function for file transfer
-    public void sendFile(int msgType, int fileNum, int chunkNum, byte[] msg){
-	showMessage("Transfering File No."+fileNum+" Chunk No."+chunkNum);
-	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
-	packet.sendPacket(outToClient);
-    }
-    
-    //read message from client and cast into packet.
-    public Packet readMessage(){
-	Packet packet=new Packet();
-	if(packet.readPacket(inFromClient)){
-		return packet;
-	}
-	else{
-	    showMessage("Server Error: Read Message Error.");
-	    return null;
+
+    public boolean closeConnection() {
+	try {
+	    serverSocket.close();
+	    return true;
+	}catch(IOException e) {
+	    showMessage("Server Error: IO Error.");
+	    return false;
 	}
     }
     
@@ -152,14 +79,95 @@ public class Server extends AsyncTask<Void, Void, String> {
 	myHandler.sendMessage(msg);
 	return;
     }
-    
-    public boolean closeConnection() {
-	try {
-	    serverSocket.close();
-	    return true;
-	}catch(IOException e) {
-	    showMessage("Server Error: IO Error.");
-	    return false;
+
+    //function for file transfer
+    public void sendMessage(int msgType, int fileNum, int chunkNum, byte[] msg){
+	if(msgType==7&&new String(msg)=="None"){
+	    showMessage("Server: Don't have any file available.");
+	}else if(msgType==7&&new String(msg)=="Exit"){
+	    showMessage("Server: All available files have been transmitted.");
+	}else if(msgType==2){
+	    showMessage("Transfering File No."+fileNum+" Chunk No."+chunkNum);
 	}
+	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
+	if(!packet.sendPacket(outToClient)){
+	    showMessage("Server Error: Send Message Error.");
+	}
+    }
+
+    //read message from client and cast into packet.
+    public Packet readMessage(){
+	Packet packet=new Packet();
+	if(packet.readPacket(inFromClient)){
+	    return packet;
+	}
+	else{
+	    showMessage("Server Error: Read Message Error.");
+	    return null;
+	}
+    }
+
+    //use asynctask to do the client/server. All functions are done in background
+    @Override
+    protected String doInBackground(Void... arg0) {
+	//initialize server
+	if(!initializeServer(serverPort)){
+	    showMessage("Server Error.");
+	    return null;
+	}
+	while(true){
+	    //use packet class to build packet and read a packet from client
+	    Packet packet=readMessage();
+	    if(packet==null){
+		showMessage("Server Error.");
+		break;
+	    }
+	    //respond accordingly to the message get from client
+	    if(packet.getMessageType()==1){
+		showMessage("Client: The Files I need are "+packet.getMessage());
+		HashMap<String,String> result=Query.checkAvailablility(packet.getMessage());
+		if(result==null){
+		    sendMessage(7,0,0,"None".getBytes());
+		    break;
+		}
+		else{
+		    Set<String> chunkSet=result.keySet();
+		    Iterator<String> chunkIt=chunkSet.iterator();
+		    while(chunkIt.hasNext()){
+			String chunkNum=chunkIt.next();
+			String fileNum=result.get(chunkNum);
+			File file= new File("sdcard/"+EE579Activity.allFileList.get(fileNum));
+			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
+			try {
+			    FileInputStream in=new FileInputStream(file);
+			    in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
+			    in.read(buffer);
+			    in.close();
+			}catch (FileNotFoundException e) {
+			    showMessage("No such File");
+			}catch (IOException e) {
+			    showMessage("IO Error.");
+			}
+			sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
+		    }
+		    sendMessage(7,0,0,"Exit".getBytes());
+		}
+	    }else if(packet.getMessageType()==7){
+		break;
+	    }else{
+		showMessage("Error: Wrong Packet from Client.");
+		break;
+	    }
+	}
+	closeConnection();
+	return null;
+    }
+
+    @Override
+    protected void onPreExecute() {
+	showMessage("Server: Started.");
+    }
+    protected void onPostExecute(String result) {
+	showMessage("Server: Finished.");
     }
 }

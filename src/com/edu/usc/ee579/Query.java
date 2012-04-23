@@ -1,35 +1,29 @@
 package com.edu.usc.ee579;
 
 import java.util.HashMap;
-import java.util.Hashtable;
 
 public class Query{
     
-    //function for the server to chech whether it has the files or chunks needed.
-    public static String checkAvailablility(String listStr,Hashtable hashtable){
-	String result=new String();
+    //function for the server to check whether it has the files or chunks needed.
+    public static HashMap<String,String> checkAvailablility(String listStr){
+	HashMap<String,String> result=new HashMap<String,String>();
 	String[] buffer=listStr.split(",");
-	//get file needed list from the client.
-	int[] fileList=new int[buffer.length];
 	int count=0;
-	for(int i=0;i<buffer.length;i++){
-	    fileList[i]=Integer.parseInt(buffer[i]);
-	}
-	//check the availability using hashtable.
-	for(int i=0;i<fileList.length;i++){
-	    if(hashtable.get(fileList[i])!=null){
-		count++;
-		if(i!=fileList.length){
-		    result+=fileList[i]+",";
-		}else{
-		    result+=fileList[i];
-		}		
+	//check the availability using hash table.
+	for(int i=0;i<buffer.length;i=i+2){
+	    if(EE579Activity.availableFileChunks.get(buffer[i])!=null){
+		HashMap<String,Boolean> chunkTable=EE579Activity.availableFileChunks.get(buffer[i]);
+		String[] chunkList=buffer[i+1].split("+");
+		for(int j=0;j<chunkList.length;j++){
+		    if(chunkTable.get(chunkList[j])!=null){
+			result.put(chunkList[j], buffer[i]);
+			count++;
+		    }
+		}
 	    }
 	}
-	if(count!=0)  return result;
-	else return null;
+	if(count==0) return null;
+	else return result;
     }
-/*    public static int[] getAvailableList(String stringList){
-	
-    }*/
+
 }

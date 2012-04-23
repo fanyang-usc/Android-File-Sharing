@@ -1,5 +1,15 @@
 package com.edu.usc.ee579;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -32,12 +42,18 @@ public class EE579Activity extends Activity implements ChannelListener{
     private boolean isWifiP2pEnabled = false;
     Context CONTEXT=this;
     private boolean retryChannel=false;
+    public final static int BYTESPERCHUNK=100000;
+    static HashMap<String, String> allFileList= new HashMap<String, String>();
+    static HashMap<String, Integer> numOfChunks= new HashMap<String, Integer>();
+    static String fileNeeded=new String();
+    
     //private WifiP2pDevice device;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-        
+        initialization();
+        fileNeeded=getFileNeeded();
         //register for the events we want to capture 
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
@@ -117,6 +133,10 @@ public class EE579Activity extends Activity implements ChannelListener{
             }).show();
             return;
         }
+        if(fileNeeded==null){
+            showMessage("You have ALL files updated. Don't need to tranfer anymore.");
+            return;
+        }
 /*        DeviceDetailFragment devicefragment = (DeviceDetailFragment)getFragmentManager().findFragmentById(R.id.devicedetail);
 	if(devicefragment.device!=null&&devicefragment.isConnected){
 	    showMessage("Please disconnect the current connection first.");
@@ -160,6 +180,11 @@ public class EE579Activity extends Activity implements ChannelListener{
         }
     }
     
+    // Round up division result
+    public static int divRoundUp(int n,int s){
+	return (((n) / (s)) + ((((n) % (s)) > 0) ? 1 : 0));
+    }
+    
     //show device info on screen
     public void updateThisDevice(WifiP2pDevice device) {
         TextView view = (TextView)findViewById(R.id.mystatus);
@@ -188,6 +213,7 @@ public class EE579Activity extends Activity implements ChannelListener{
         final DeviceDetailFragment fragment = (DeviceDetailFragment) getFragmentManager()
                 .findFragmentById(R.id.devicedetail);
         fragment.blockDetail();
+        updateRecord();
         manager.removeGroup(channel, new ActionListener() {
             @Override
             public void onFailure(int reasonCode) {
@@ -245,8 +271,195 @@ public class EE579Activity extends Activity implements ChannelListener{
             }
         }
         return;
-
     }
+    
+/*    static HashMap<String, HashMap<String, Boolean>> availableFileChunks= new HashMap<String, HashMap<String, Boolean>>();
+    static HashMap<String, HashMap<String, Boolean>> neededFileChunks= new HashMap<String, HashMap<String, Boolean>>();
+    void initialization(){
+	File listFile=new File("/sdcard/ee579filelist.txt");
+	File recordFile=new File("/sdcard/ee579record.txt");
+	try {
+	    BufferedReader inputReader = new BufferedReader(new FileReader(listFile));
+	    String buffer = new String(); 
+	    while((buffer=inputReader.readLine())!=null){  
+		String [] fileInfo= buffer.split(",");		
+		allFileList.put(fileInfo[0], fileInfo[1]);
+		int num=divRoundUp(Integer.parseInt(fileInfo[2]),BYTESPERCHUNK);
+		numOfChunks.put(fileInfo[0],num);
+	    }
+	    inputReader.close();
+	    inputReader=new BufferedReader(new FileReader(recordFile));
+	    while((buffer=inputReader.readLine())!=null){  
+		String [] fileInfo= buffer.split(",");		
+		if((buffer=inputReader.readLine())!=null){
+		    HashMap<String, Boolean> chunkMap= new HashMap<String, Boolean>();
+		    String [] chunkNum= buffer.split(",");
+		    for(int i=0;i<chunkNum.length;i++){
+			chunkMap.put(chunkNum[i], true);
+		    }
+		    availableFileChunks.put(fileInfo[0], chunkMap);
+		}
+	    }
+	    inputReader.close();
+	    Set<String>files= allFileList.keySet();
+	    Iterator<String> it=files.iterator();
+	    while(it.hasNext()){
+		buffer=it.next();
+		if(availableFileChunks.get(buffer)==null){
+		    HashMap<String, Boolean> chunkMap= new HashMap<String, Boolean>();
+		    for(int i=0;i<numOfChunks.get(buffer);i++){
+			chunkMap.put(new Integer(i).toString(), true);
+		    }
+		    neededFileChunks.put(buffer, chunkMap);
+		}else{
+		    HashMap<String, Boolean> chunkMap=availableFileChunks.get(buffer);
+		    HashMap<String, Boolean> neededChunkMap= new HashMap<String, Boolean>();
+		    for(int i=0;i<numOfChunks.get(buffer);i++){
+			if(chunkMap.get(new Integer(i).toString())==null){
+			    neededChunkMap.put(new Integer(i).toString(), true);
+			}
+		    } 
+		    neededFileChunks.put(buffer, neededChunkMap);
+		}
+	    }
+	} catch (IOException e) {
+	    showMessage("IO Error.");
+	}
+	
+    }
+    public static String getFileNeeded(){
+	String result=new String();
+	Set<String> files=neededFileChunks.keySet();
+	if(files.isEmpty()) return null;
+	Iterator<String> it=files.iterator();
+	int i=0;
+	while(it.hasNext()){
+	    if(i++!=0) result+=",";
+	    String buffer=it.next();
+	    result+=buffer+",";
+	    HashMap<String, Boolean> neededChunkMap=neededFileChunks.get(buffer);
+	    Set<String> chunks=neededChunkMap.keySet();
+	    Iterator<String> chunkit=chunks.iterator();
+	    int j=0;
+	    while(chunkit.hasNext()){
+		if(j++!=0) result+="+";
+		result+=chunkit.next();
+	    }
+	}
+	return result;	
+    }
+    
+    public void updateRecord(){
+	File recordFile=new File("/sdcard/ee579record.txt");
+	try {
+	    BufferedWriter outputWriter = new BufferedWriter(new FileWriter(recordFile,false));
+	    Set<String>files= availableFileChunks.keySet();
+	    Iterator<String> it=files.iterator();
+	    while(it.hasNext()){
+		outputWriter.write(it.next()+"\n");
+		HashMap<String, Boolean> chunkMap=availableFileChunks.get(it.next());
+		Set<String> chunks= chunkMap.keySet();
+		Iterator<String> chunkit=chunks.iterator();
+		String chunkList=new String();
+		int i=0;
+		while(chunkit.hasNext()){
+		    if(i++!=0) chunkList+=",";
+		    chunkList+=chunkit.next();
+		}
+		outputWriter.write(chunkList+"\n");
+	    }
+	    outputWriter.flush();
+	    outputWriter.close();
+	} catch (IOException e) {
+	    showMessage("IO Error.");
+	}
+    }*/
 
-
+    
+    private static HashMap<String, BitMap> availableChunkMap= new HashMap<String, BitMap>();
+    private static HashMap<String, BitMap> neededChunkMap= new HashMap<String, BitMap>();
+    void initialization(){
+	File listFile=new File("/sdcard/ee579filelist.txt");
+	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
+	try {
+	    BufferedReader inputReader = new BufferedReader(new FileReader(listFile));
+	    String buffer = new String(); 
+	    while((buffer=inputReader.readLine())!=null){  
+		String [] fileInfo= buffer.split(",");		
+		allFileList.put(fileInfo[0], fileInfo[1]);
+		int num=divRoundUp(Integer.parseInt(fileInfo[2]),BYTESPERCHUNK);
+		numOfChunks.put(fileInfo[0],num);
+	    }
+	    inputReader.close();
+	    inputReader=new BufferedReader(new FileReader(recordFile));
+	    while((buffer=inputReader.readLine())!=null){  
+		String [] fileInfo= buffer.split(",");		
+		if((buffer=inputReader.readLine())!=null){		    
+		    BitMap chunkMap= new BitMap(buffer);
+		    if(chunkMap.length()!=numOfChunks.get(fileInfo[0])){
+			showMessage("Error: BitMap length not correct");
+			return;
+		    }
+		    availableChunkMap.put(fileInfo[0], chunkMap);
+		}
+	    }
+	    inputReader.close();
+	    Set<String>files= allFileList.keySet();
+	    Iterator<String> it=files.iterator();
+	    while(it.hasNext()){
+		buffer=it.next();
+		if(availableChunkMap.get(buffer)==null){
+		    BitMap chunkMap=new BitMap(numOfChunks.get(buffer));
+		    for(int i=0;i<numOfChunks.get(buffer);i++){
+			chunkMap.Mark(i);
+		    }
+		    neededChunkMap.put(buffer, chunkMap);
+		}else{
+		    BitMap chunkMap=availableChunkMap.get(buffer);
+		    BitMap neededChunk= new BitMap(numOfChunks.get(buffer));
+		    for(int i=0;i<numOfChunks.get(buffer);i++){
+			if(!chunkMap.Test(i)){
+			    neededChunk.Mark(i);
+			}
+		    } 
+		    neededChunkMap.put(buffer, neededChunk);
+		}
+	    }
+	} catch (IOException e) {
+	    showMessage("IO Error.");
+	}	
+    }
+    
+    public static String getFileNeeded(){
+	String result=new String();
+	Set<String> files=neededChunkMap.keySet();
+	if(files.isEmpty()) return null;
+	Iterator<String> it=files.iterator();
+	int i=0;
+	while(it.hasNext()){
+	    if(i++!=0) result+=",";
+	    String buffer=it.next();
+	    result+=buffer+",";
+    	    result+=neededChunkMap.get(buffer).toString();
+	}
+	return result;	
+    }
+    
+    public void updateRecord(){
+	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
+	try {
+	    BufferedWriter outputWriter = new BufferedWriter(new FileWriter(recordFile,false));
+	    Set<String>files= availableChunkMap.keySet();
+	    Iterator<String> it=files.iterator();
+	    while(it.hasNext()){
+		outputWriter.write(it.next()+"\n");
+		BitMap chunkMap=availableChunkMap.get(it.next());
+		outputWriter.write(chunkMap.toString()+"\n");
+	    }
+	    outputWriter.flush();
+	    outputWriter.close();
+	} catch (IOException e) {
+	    showMessage("IO Error.");
+	}
+    }
 }

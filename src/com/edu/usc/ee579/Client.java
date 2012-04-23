@@ -1,12 +1,14 @@
 package com.edu.usc.ee579;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.HashMap;
 
 import android.os.AsyncTask;
 import android.os.Handler;
@@ -20,9 +22,7 @@ public class Client extends AsyncTask<Void, Void, String>{
     private String serverIP=null;
     private int serverPort=0;
     Handler myHandler=null;
-    private ArrayList<Integer> availableFileList=new ArrayList<Integer>();
-    private ArrayList<Integer> availableChunkList=new ArrayList<Integer>();
-    
+
     public Client(String serverIP, int serverPort, Handler myHandler) {
 	this.serverIP=serverIP;
 	this.serverPort=serverPort;
@@ -47,33 +47,7 @@ public class Client extends AsyncTask<Void, Void, String>{
 	    return false;
 	}
     }
-    
-    //send message to server and show on screen
-    public void sendMessage(int msgType, int fileNum, int chunkNum, String msg){ 
-	if(msgType==1){
-	    showMessage("Client: The files I need are: "+msg);
-	}else if(msgType==3){
-	    showMessage("Client: The chunks I need in File No."+fileNum+" are: "+msg);
-	}else if(msgType==5){
-	    showMessage("Client: I need File No."+fileNum+" Chunk No. "+chunkNum);
-	}
-	Packet packet=new Packet(msgType, fileNum, chunkNum, msg.getBytes());
-	if(!packet.sendPacket(outToServer)){
-	    showMessage("Client Error: Send Message Error.");
-	}
-    }
-    
-    //read from server and cast into packet
-    public Packet readMessage(){  
-	Packet packet=new Packet();
-	if(packet.readPacket(inFromServer)){
-	    return packet;
-	}
-	else{
-	    showMessage("Client Error: Read Message Error.");
-	    return null;
-	}
-    }
+
     
     public void showMessage(String str){
 	//str.replace('\n', '\0');
@@ -93,6 +67,34 @@ public class Client extends AsyncTask<Void, Void, String>{
 	}
     }
     
+    
+    //send message to server and show on screen
+    public void sendMessage(int msgType, int fileNum, int chunkNum, String msg){ 
+	if(msgType==1){
+	    String[] buffer=msg.split(",");
+	    String message="Client: The files I need are: ";
+	    for(int i=0;i<buffer.length;i++){
+		message+=buffer[i++]+",";
+	    }
+	    showMessage(message);
+	}
+	Packet packet=new Packet(msgType, fileNum, chunkNum, msg.getBytes());
+	if(!packet.sendPacket(outToServer)){
+	    showMessage("Client Error: Send Message Error.");
+	}
+    }
+    
+    //read from server and cast into packet
+    public Packet readMessage(){  
+	Packet packet=new Packet();
+	if(packet.readPacket(inFromServer)){
+	    return packet;
+	}
+	else{
+	    showMessage("Client Error: Read Message Error.");
+	    return null;
+	}
+    }
     //communicate with server in background. check files and chunks needed and whether the server has them.
     @Override
     protected String doInBackground(Void... arg0) {
@@ -101,84 +103,89 @@ public class Client extends AsyncTask<Void, Void, String>{
 	    return null;
 	}
 	//checkFileNeed()
-	sendMessage(1,0,0,"3,5,8");
+	if(EE579Activity.fileNeeded!=null)
+	    sendMessage(1,0,0,EE579Activity.fileNeeded);
 	while(true){
 	    Packet packet=readMessage();
 	    if(packet==null){
-		showMessage("Client Error.");
+		showMessage("Client Packet Error.");
 		break;
 	    }
-	    if(packet.getMessageType()==2){
-		showMessage("Server: The files I have are: "+packet.getMessage());
-		//if server has no file the client need, just disconnect.
-		if(packet.getMessage()=="None")
-		    sendMessage(7,0,0,"Exit");
-		else{
-		    //get all available file list
-		    String[] buffer=packet.getMessage().split(",");
-		    //choose one file randomly and ask for chunks, put others in a list for future use
-		    int index=new Random(1).nextInt()%buffer.length;
-		    for(int i=0;i<buffer.length;i++){
-			if(i==index){
-			    //check chunk need
-			    sendMessage(3,Integer.parseInt(buffer[i]),0,"242,234");
-			}else{
-			    availableFileList.add(Integer.parseInt(buffer[i]));
-			}
-		    }    
-		}
-	    }else if(packet.getMessageType()==4){
-		showMessage("Server: The chunks I have in File No."+packet.getFileNum()+" are: "+packet.getMessage());
-		if(packet.getMessage()=="None"){
-		    if(!availableFileList.isEmpty()){
-			int index=new Random(1).nextInt()%availableFileList.size();
-			//check chunk need
-			sendMessage(3,availableFileList.get(index),0,"Transfer");
-			availableFileList.remove(index);
-		    }else{
-			sendMessage(7,0,0,"Exit");
-			break;
-		    }
-		}
-		else{
-		    String[] buffer=packet.getMessage().split(",");
-		    int index=new Random(1).nextInt()%buffer.length;
-		    for(int i=0;i<buffer.length;i++){
-			if(i==index){
-			    sendMessage(5,packet.getFileNum(),Integer.parseInt(buffer[i]),"Transfer");
-			}else{
-			    availableChunkList.add(Integer.parseInt(buffer[i]));
-			}
-		    }    
-		}
-	    }else if(packet.getMessageType()==6){
-		//check if the transfer is successful
-		showMessage("Client: geting file.");
-		//if successful try to transfer next chunk available.
-		if(!availableChunkList.isEmpty()){
-		    int index=new Random(1).nextInt()%availableChunkList.size();
-		    sendMessage(5,packet.getFileNum(),availableChunkList.get(index),"Transfer");
-		    availableChunkList.remove(index);
-		}else if(!availableFileList.isEmpty()){
-		    //if no chunks left see if the server has other files available.
-		    int index=new Random(1).nextInt()%availableFileList.size();
-		    //check chunk need
-		    sendMessage(3,availableFileList.get(index),0,"Transfer");
-		    availableFileList.remove(index);
-		}else{
-		    //disconnect when nothing to transfer.
-		    sendMessage(7,0,0,"Exit");
+	    if(packet.getMessageType()==2){	
+		int fileNum=packet.getFileNum();
+		int chunkNum=packet.getChunkNum();
+		String fileNumStr=new Integer(fileNum).toString();
+		String chunkNumStr=new Integer(chunkNum).toString();
+		showMessage("Client: Geting file No."+fileNum+" chunk No."+chunkNum);
+		File tmpFile= new File("/sdcard/tmp/"+fileNumStr+"-"+chunkNumStr+".tmp");
+		try {
+		    FileOutputStream fileOut= new FileOutputStream(tmpFile);
+		    fileOut.write(packet.getMessageByte());
+		    fileOut.flush();
+		    fileOut.close();
+		} catch (IOException e) {
+		    showMessage("IO ERROR");
 		    break;
 		}
-
+		HashMap<String,Boolean> chunkMap=EE579Activity.availableFileChunks.get(fileNumStr);
+		int numOfAvailableChunks=0;
+		if(chunkMap==null){
+		    numOfAvailableChunks=1;
+		    HashMap<String,Boolean> newChunkMap=new HashMap<String,Boolean>();
+		    newChunkMap.put(chunkNumStr, true);
+		    EE579Activity.availableFileChunks.put(fileNumStr, newChunkMap);
+		}else{
+		    chunkMap.put(chunkNumStr, true);
+		    EE579Activity.availableFileChunks.remove(fileNumStr);
+		    EE579Activity.availableFileChunks.put(fileNumStr, chunkMap);
+		    numOfAvailableChunks=chunkMap.size();
+		}
+		HashMap<String,Boolean> needChunkMap=EE579Activity.neededFileChunks.get(fileNumStr);
+		EE579Activity.neededFileChunks.remove(fileNumStr);
+		needChunkMap.remove(chunkNumStr);
+		if(!needChunkMap.isEmpty())
+		    EE579Activity.neededFileChunks.put(fileNumStr, needChunkMap);
+		EE579Activity.getFileNeeded();
+		int numOfChunks=EE579Activity.numOfChunks.get(fileNumStr);
+		if(numOfAvailableChunks==numOfChunks){
+		    combineFiles(fileNumStr);
+		}
+	    }else if(packet.getMessageType()==7&&packet.getMessage()=="None"){
+		showMessage("Server: Don't have any file available");
+		break;
+	    }else if(packet.getMessageType()==7&&packet.getMessage()=="Exit"){
+		showMessage("Server: All available files have been transmitted.");
+		break;
 	    }else{
-		showMessage("Wrong Packet.");
+		showMessage("Error: Wrong Packet from Server.");
 		break;
 	    }
 	}
 	closeConnection();
 	return null;
     }
+    
+    public void combineFiles(String fileNumStr){	
+	try {
+	    File file= new File("/sdcard/"+EE579Activity.allFileList.get(fileNumStr));
+	    FileOutputStream out=new FileOutputStream(file);
+	    int count=EE579Activity.numOfChunks.get(fileNumStr);
+	    int i=0;
+	    while(i<count){
+		File tmpFile= new File("/sdcard/tmp/"+fileNumStr+"-"+i+".tmp");
+		FileInputStream in=new FileInputStream(tmpFile);
+		int buffer;
+		while((buffer=in.read())!=-1)
+		    out.write(buffer);
+		out.flush();
+	    }
+	    out.flush();
+	    out.close();
+	} catch (IOException e) {
+	    showMessage("IO Error.");
+	}
+    }
+    
     @Override
     protected void onPreExecute() {
         showMessage("Client: Started.");
