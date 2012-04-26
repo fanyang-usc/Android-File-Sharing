@@ -2,8 +2,14 @@
 <menu
     xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:id="@+id/folder"
+        android:icon="@drawable/folder"
+        android:title="Folder"
+        android:showAsAction="ifRoom|withText" />
+    <item
         android:id="@+id/exit"
         android:icon="@drawable/exit"
         android:title="Exit"
         android:showAsAction="ifRoom|withText" />
+
 </menu>

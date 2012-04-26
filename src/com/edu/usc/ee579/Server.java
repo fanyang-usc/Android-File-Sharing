@@ -15,6 +15,7 @@ import java.util.Set;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 
 public class Server extends AsyncTask<Void, Void, String> {
     private ServerSocket serverSocket = null;
@@ -82,12 +83,12 @@ public class Server extends AsyncTask<Void, Void, String> {
 
     //function for file transfer
     public void sendMessage(int msgType, int fileNum, int chunkNum, byte[] msg){
-	if(msgType==7&&new String(msg)=="None"){
+	if(msgType==7&&new String(msg).equals("None")){
 	    showMessage("Server: Don't have any file available.");
-	}else if(msgType==7&&new String(msg)=="Exit"){
+	}else if(msgType==7&&new String(msg).equals("Exit")){
 	    showMessage("Server: All available files have been transmitted.");
 	}else if(msgType==2){
-	    showMessage("Transfering File No."+fileNum+" Chunk No."+chunkNum);
+	    showMessage("Server: Transfering File No."+fileNum+" Chunk No."+chunkNum);
 	}
 	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
 	if(!packet.sendPacket(outToClient)){
@@ -134,23 +135,38 @@ public class Server extends AsyncTask<Void, Void, String> {
 		    Set<String> chunkSet=result.keySet();
 		    Iterator<String> chunkIt=chunkSet.iterator();
 		    while(chunkIt.hasNext()){
-			String chunkNum=chunkIt.next();
-			String fileNum=result.get(chunkNum);
-			File file= new File("sdcard/"+EE579Activity.allFileList.get(fileNum));
+			String chunkInfo=chunkIt.next();
+			Log.d("EE579", chunkInfo);
+			String chunkNum=chunkInfo.split("\\,")[1];
+			Log.d("EE579", chunkNum);
+			String fileNum=result.get(chunkInfo);
+			File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNum));
 			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
+			int numOfBytesRead=0;
 			try {
 			    FileInputStream in=new FileInputStream(file);
 			    in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
-			    in.read(buffer);
+			    numOfBytesRead=in.read(buffer);
 			    in.close();
 			}catch (FileNotFoundException e) {
 			    showMessage("No such File");
 			}catch (IOException e) {
 			    showMessage("IO Error.");
 			}
-			sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
+			if(numOfBytesRead!=EE579Activity.BYTESPERCHUNK){
+			    byte[] msg=new byte[numOfBytesRead];
+			    for(int i=0;i<numOfBytesRead;i++) msg[i]=buffer[i];
+			    Log.d("EE579", fileNum);
+			    Log.d("EE579", chunkNum);
+			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),msg);
+			}else{
+			    Log.d("EE579", fileNum);
+			    Log.d("EE579", chunkNum);
+			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
+			}
 		    }
 		    sendMessage(7,0,0,"Exit".getBytes());
+		    break;
 		}
 	    }else if(packet.getMessageType()==7){
 		break;
@@ -160,6 +176,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	    }
 	}
 	closeConnection();
+	EE579Activity.updateRecord();
 	return null;
     }
 

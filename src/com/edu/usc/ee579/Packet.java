@@ -71,8 +71,8 @@ public class Packet{
     
     public boolean readPacket(InputStream inFromBuffer) {
 	try {
-	    packet=new byte[20+EE579Activity.BYTESPERCHUNK];
-	    int numOfByteRead=inFromBuffer.read(packet);
+	    packet=new byte[20];
+	    int numOfByteRead=inFromBuffer.read(packet,0,20);
 	    byte[] msgTypeByte= new byte[4];
 	    byte[] msgLenByte= new byte[4];
 	    byte[] totalLenByte= new byte[4];
@@ -88,11 +88,12 @@ public class Packet{
 	    msgLength=bytesToInt(msgLenByte);
 	    fileNum=bytesToInt(fileNumByte);
 	    chunkNum=bytesToInt(chunkNumByte);
-	    if(numOfByteRead!=totalLength){
-		return false;
-	    }
 	    msg=new byte[msgLength];
-	    for(int i=0;i<msgLength;i++) msg[i]=packet[i+20];
+	    int totalNumOfByteRead=0;	    
+	    while(totalNumOfByteRead!=msgLength){
+		numOfByteRead=inFromBuffer.read(msg,totalNumOfByteRead,msgLength-totalNumOfByteRead);
+		totalNumOfByteRead+=numOfByteRead;
+	    }
 	} catch (IOException e) {
 	    return false;
 	}

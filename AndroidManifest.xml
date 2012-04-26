@@ -25,9 +25,17 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+			</intent-filter>  
         </activity>
-        <activity android:name="Server"></activity>
-        <activity android:name="Client"></activity>
+        <activity android:name="BrowserFolder">
+            <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            </intent-filter>
+        </activity>
     </application>
 
 

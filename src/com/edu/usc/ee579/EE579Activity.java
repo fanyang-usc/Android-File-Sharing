@@ -1,5 +1,6 @@
 package com.edu.usc.ee579;
 
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -25,6 +26,7 @@ import android.net.wifi.p2p.WifiP2pManager.Channel;
 import android.net.wifi.p2p.WifiP2pManager.ChannelListener;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -52,6 +54,8 @@ public class EE579Activity extends Activity implements ChannelListener{
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        File file= new File("/sdcard/ee579");
+        if(!file.exists()) file.mkdirs();
         initialization();
         fileNeeded=getFileNeeded();
         //register for the events we want to capture 
@@ -97,6 +101,9 @@ public class EE579Activity extends Activity implements ChannelListener{
         	this.finish();
         	System.exit(0);
         	return true;
+            case R.id.folder:
+        	Intent browseFolder= new Intent(this,BrowserFolder.class);
+        	startActivity(browseFolder);
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -374,14 +381,17 @@ public class EE579Activity extends Activity implements ChannelListener{
 	    showMessage("IO Error.");
 	}
     }*/
-
     
-    private static HashMap<String, BitMap> availableChunkMap= new HashMap<String, BitMap>();
-    private static HashMap<String, BitMap> neededChunkMap= new HashMap<String, BitMap>();
+    public static HashMap<String, BitMap> availableChunkMap= new HashMap<String, BitMap>();
+    public static HashMap<String, BitMap> neededChunkMap= new HashMap<String, BitMap>();
     void initialization(){
 	File listFile=new File("/sdcard/ee579filelist.txt");
 	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
 	try {
+	    if(!listFile.exists()){
+		showMessage("Fatal Error: Config file not found.");
+		return;
+	    }
 	    BufferedReader inputReader = new BufferedReader(new FileReader(listFile));
 	    String buffer = new String(); 
 	    while((buffer=inputReader.readLine())!=null){  
@@ -389,11 +399,22 @@ public class EE579Activity extends Activity implements ChannelListener{
 		allFileList.put(fileInfo[0], fileInfo[1]);
 		int num=divRoundUp(Integer.parseInt(fileInfo[2]),BYTESPERCHUNK);
 		numOfChunks.put(fileInfo[0],num);
+		File oneFile= new File("/sdcard/ee579/"+fileInfo[1]);
+		if(oneFile.exists()){
+		    BitMap chunkMap= new BitMap(num);
+		    for(int i=0;i<num;i++) chunkMap.Mark(i);
+		    availableChunkMap.put(fileInfo[0], chunkMap);
+		}
 	    }
 	    inputReader.close();
+	    recordFile.createNewFile();
 	    inputReader=new BufferedReader(new FileReader(recordFile));
 	    while((buffer=inputReader.readLine())!=null){  
-		String [] fileInfo= buffer.split(",");		
+		String [] fileInfo= buffer.split(",");	
+		if(availableChunkMap.get(fileInfo[0])!=null){
+		    buffer=inputReader.readLine();
+		    continue;
+		}
 		if((buffer=inputReader.readLine())!=null){		    
 		    BitMap chunkMap= new BitMap(buffer);
 		    if(chunkMap.length()!=numOfChunks.get(fileInfo[0])){
@@ -416,6 +437,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 		    neededChunkMap.put(buffer, chunkMap);
 		}else{
 		    BitMap chunkMap=availableChunkMap.get(buffer);
+		    if(chunkMap.numMarked()==numOfChunks.get(buffer)) continue;
 		    BitMap neededChunk= new BitMap(numOfChunks.get(buffer));
 		    for(int i=0;i<numOfChunks.get(buffer);i++){
 			if(!chunkMap.Test(i)){
@@ -426,7 +448,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 		}
 	    }
 	} catch (IOException e) {
-	    showMessage("IO Error.");
+	    showMessage("IO Error: "+e.toString());
 	}	
     }
     
@@ -445,21 +467,22 @@ public class EE579Activity extends Activity implements ChannelListener{
 	return result;	
     }
     
-    public void updateRecord(){
+    public static void updateRecord(){
 	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
 	try {
 	    BufferedWriter outputWriter = new BufferedWriter(new FileWriter(recordFile,false));
 	    Set<String>files= availableChunkMap.keySet();
 	    Iterator<String> it=files.iterator();
 	    while(it.hasNext()){
-		outputWriter.write(it.next()+"\n");
-		BitMap chunkMap=availableChunkMap.get(it.next());
+		String buffer=it.next();
+		outputWriter.write(buffer+","+allFileList.get(buffer)+"\n");
+		BitMap chunkMap=availableChunkMap.get(buffer);
 		outputWriter.write(chunkMap.toString()+"\n");
 	    }
 	    outputWriter.flush();
 	    outputWriter.close();
 	} catch (IOException e) {
-	    showMessage("IO Error.");
+	    Log.d("EE579","IO Error.");
 	}
     }
 }
