@@ -1,12 +1,17 @@
 package com.edu.usc.ee579;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Random;
+
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
@@ -66,9 +71,10 @@ public class Client extends AsyncTask<Void, Void, String>{
     
     
     //send message to server and show on screen
-    public void sendMessage(int msgType, int fileNum, int chunkNum, String msg){ 
+    public void sendMessage(int msgType, int fileNum, int chunkNum, byte[] msg){ 
 	if(msgType==1){
-	    String[] buffer=msg.split(",");
+	    String msgStr=new String(msg);
+	    String[] buffer=msgStr.split(",");
 	    String message="Client: The files I need are: ";
 	    int j=0;
 	    for(int i=0;i<buffer.length;i++){
@@ -76,8 +82,16 @@ public class Client extends AsyncTask<Void, Void, String>{
 		message+=buffer[i++];
 	    }
 	    showMessage(message);
+	}else if(msgType==7&&new String(msg).equals("None")){
+	    showMessage("Client: Don't have any file needed.");
+	}else if(msgType==7&&new String(msg).equals("Nofile")){
+	    showMessage("Client: Don't have any file available to transmit.");
+	}else if(msgType==7&&new String(msg).equals("Exit")){
+	    showMessage("Client: All available files have been transmitted.");
+	}else if(msgType==2){
+	    showMessage("Client: Transfering File No."+fileNum+" Chunk No."+chunkNum);
 	}
-	Packet packet=new Packet(msgType, fileNum, chunkNum, msg.getBytes());
+	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
 	if(!packet.sendPacket(outToServer)){
 	    showMessage("Client Error: Send Message Error.");
 	}
@@ -103,12 +117,9 @@ public class Client extends AsyncTask<Void, Void, String>{
 	}
 	//checkFileNeed()
 	if(EE579Activity.fileNeeded!=null&&EE579Activity.fileNeeded!="")
-	    sendMessage(1,0,0,EE579Activity.fileNeeded);
+	    sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
 	else{
-	    showMessage("No file need.");
-	    sendMessage(7,0,0,"Exit");
-	    closeConnection();
-	    return null;
+	    sendMessage(7,0,0,"None".getBytes());
 	}
 	while(true){
 	    Packet packet=readMessage();
@@ -116,7 +127,49 @@ public class Client extends AsyncTask<Void, Void, String>{
 		showMessage("No Packet Available.");
 		break;
 	    }
-	    if(packet.getMessageType()==2){	
+	    if(packet.getMessageType()==1){
+		showMessage("Server: The Files I need are "+packet.getMessage());
+		ArrayList<String> result=Query.checkAvailablility(packet.getMessage());
+		if(result==null){
+		    sendMessage(7,0,0,"Exit".getBytes());
+		    break;
+		}
+		else{	    
+		    while(result.size()!=0){
+			int numOfChunks=result.size();
+			String chunkInfo=new String();
+			int index=new Random().nextInt(1000000)%numOfChunks;
+			chunkInfo=result.get(index);
+			result.remove(index);			
+			String[] fileDetail= chunkInfo.split("\\,");
+			String fileNum=fileDetail[0];
+			String chunkNum=fileDetail[1];		
+			File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNum));
+			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
+			int numOfBytesRead=0;
+			try {
+			    FileInputStream in=new FileInputStream(file);
+			    in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
+			    numOfBytesRead=in.read(buffer);
+			    in.close();
+			}catch (FileNotFoundException e) {
+			    showMessage("No such File");
+			}catch (IOException e) {
+			    showMessage("IO Error.");
+			}
+			if(numOfBytesRead!=EE579Activity.BYTESPERCHUNK){
+			    byte[] msg=new byte[numOfBytesRead];
+			    for(int i=0;i<numOfBytesRead;i++) msg[i]=buffer[i];
+			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),msg);
+			}else{
+			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
+			}
+		    }
+		    sendMessage(7,0,0,"Exit".getBytes());
+		    break;
+		}
+	    }
+	    else if(packet.getMessageType()==2){	
 		int fileNum=packet.getFileNum();
 		int chunkNum=packet.getChunkNum();
 		String fileNumStr=new Integer(fileNum).toString();
@@ -136,7 +189,10 @@ public class Client extends AsyncTask<Void, Void, String>{
 		    break;
 		}
 		int numOfAvailableChunks=0;
-		/*HashMap<String,Boolean> chunkMap=EE579Activity.availableFileChunks.get(fileNumStr);		
+		
+		/*This part is the corresponding parts if you choose the Pure Hash Table implementation.
+		 * 
+		HashMap<String,Boolean> chunkMap=EE579Activity.availableFileChunks.get(fileNumStr);		
 		if(chunkMap==null){
 		    numOfAvailableChunks=1;
 		    HashMap<String,Boolean> newChunkMap=new HashMap<String,Boolean>();
@@ -154,6 +210,8 @@ public class Client extends AsyncTask<Void, Void, String>{
 		if(!needChunkMap.isEmpty())
 		    EE579Activity.neededFileChunks.put(fileNumStr, needChunkMap);
 		*/
+		
+		/*HashTable+Bitmap solution*/
 		BitMap chunkMap=EE579Activity.availableChunkMap.get(fileNumStr);
 		if(chunkMap==null){
 		    numOfAvailableChunks=1;
@@ -170,6 +228,7 @@ public class Client extends AsyncTask<Void, Void, String>{
 		    EE579Activity.neededChunkMap.remove(fileNumStr);
 		}
 		
+		//common codes for both implementation.
 		EE579Activity.getFileNeeded();
 		int numOfChunks=EE579Activity.numOfChunks.get(fileNumStr);
 		if(numOfAvailableChunks==numOfChunks){
@@ -191,29 +250,6 @@ public class Client extends AsyncTask<Void, Void, String>{
 	closeConnection();
 	return null;
     }
-    
-/*    public void combineFiles(String fileNumStr){	
-	try {
-	    File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNumStr));
-	    FileOutputStream out=new FileOutputStream(file);
-	    int count=EE579Activity.numOfChunks.get(fileNumStr);
-	    int i=0;
-	    while(i<count){
-		File tmpFile= new File("/sdcard/ee579/tmp/"+fileNumStr+"-"+i+".tmp");
-		FileInputStream in=new FileInputStream(tmpFile);
-		int buffer;
-		while((buffer=in.read())!=-1)
-		    out.write(buffer);
-		in.close();
-		tmpFile.deleteOnExit();
-		i++;
-	    }
-	    out.flush();
-	    out.close();
-	} catch (IOException e) {
-	    showMessage("IO Error.");
-	}
-    }*/
     
     @Override
     protected void onPreExecute() {

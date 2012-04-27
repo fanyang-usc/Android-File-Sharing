@@ -3,19 +3,17 @@ package com.edu.usc.ee579;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
-
+import java.util.ArrayList;
+import java.util.Random;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Message;
-import android.util.Log;
 
 public class Server extends AsyncTask<Void, Void, String> {
     private ServerSocket serverSocket = null;
@@ -89,6 +87,16 @@ public class Server extends AsyncTask<Void, Void, String> {
 	    showMessage("Server: All available files have been transmitted.");
 	}else if(msgType==2){
 	    showMessage("Server: Transfering File No."+fileNum+" Chunk No."+chunkNum);
+	}else if(msgType==1){
+	    String msgStr=new String(msg);
+	    String[] buffer=msgStr.split(",");
+	    String message="Server: The files I need are: ";
+	    int j=0;
+	    for(int i=0;i<buffer.length;i++){
+		if(j++!=0) message+=",";
+		message+=buffer[i++];
+	    }
+	    showMessage(message);
 	}
 	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
 	if(!packet.sendPacket(outToClient)){
@@ -126,20 +134,24 @@ public class Server extends AsyncTask<Void, Void, String> {
 	    //respond accordingly to the message get from client
 	    if(packet.getMessageType()==1){
 		showMessage("Client: The Files I need are "+packet.getMessage());
-		HashMap<String,String> result=Query.checkAvailablility(packet.getMessage());
+		ArrayList<String> result=Query.checkAvailablility(packet.getMessage());
 		if(result==null){
 		    sendMessage(7,0,0,"None".getBytes());
 		    break;
 		}
-		else{
-		    Set<String> chunkSet=result.keySet();
-		    Iterator<String> chunkIt=chunkSet.iterator();
-		    while(chunkIt.hasNext()){
-			String chunkInfo=chunkIt.next();
-			Log.d("EE579", chunkInfo);
-			String chunkNum=chunkInfo.split("\\,")[1];
-			Log.d("EE579", chunkNum);
-			String fileNum=result.get(chunkInfo);
+		else{	    
+		    while(result.size()!=0){
+			int numOfChunks=result.size();
+			String chunkInfo=new String();
+			int index=new Random().nextInt(1000000)%numOfChunks;
+			chunkInfo=result.get(index);
+			/*use this if Bloom Filter
+			File file= new File("/sdcard/ee579/"+chunkInfo);
+			*/
+			result.remove(index);			
+			String[] fileDetail= chunkInfo.split("\\,");
+			String fileNum=fileDetail[0];
+			String chunkNum=fileDetail[1];		
 			File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNum));
 			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
 			int numOfBytesRead=0;
@@ -156,19 +168,68 @@ public class Server extends AsyncTask<Void, Void, String> {
 			if(numOfBytesRead!=EE579Activity.BYTESPERCHUNK){
 			    byte[] msg=new byte[numOfBytesRead];
 			    for(int i=0;i<numOfBytesRead;i++) msg[i]=buffer[i];
-			    Log.d("EE579", fileNum);
-			    Log.d("EE579", chunkNum);
 			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),msg);
 			}else{
-			    Log.d("EE579", fileNum);
-			    Log.d("EE579", chunkNum);
 			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
 			}
 		    }
-		    sendMessage(7,0,0,"Exit".getBytes());
+		    if(EE579Activity.fileNeeded!=null&&EE579Activity.fileNeeded!="")
+			sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
+		    else{
+			sendMessage(7,0,0,"Exit".getBytes());
+		    }
+		}
+	    }else if(packet.getMessageType()==2){	
+		int fileNum=packet.getFileNum();
+		int chunkNum=packet.getChunkNum();
+		String fileNumStr=new Integer(fileNum).toString();
+		String chunkNumStr=new Integer(chunkNum).toString();
+		showMessage("Server: Get file No."+fileNum+" chunk No."+chunkNum);
+		File tmpFolder= new File("/sdcard/ee579/tmp/");
+		File tmpFile= new File("/sdcard/ee579/tmp/"+fileNumStr+"-"+chunkNumStr+".tmp");
+		try {
+		    tmpFolder.mkdirs();
+		    tmpFile.createNewFile();
+		    FileOutputStream fileOut= new FileOutputStream(tmpFile);
+		    fileOut.write(packet.getMessageByte());
+		    fileOut.flush();
+		    fileOut.close();
+		} catch (IOException e) {
+		    showMessage("IO ERROR"+e.toString());
 		    break;
 		}
-	    }else if(packet.getMessageType()==7){
+		int numOfAvailableChunks=0;
+		BitMap chunkMap=EE579Activity.availableChunkMap.get(fileNumStr);
+		if(chunkMap==null){
+		    numOfAvailableChunks=1;
+		    BitMap newChunkMap=new BitMap(EE579Activity.numOfChunks.get(fileNumStr));
+		    newChunkMap.Mark(chunkNum);
+		    EE579Activity.availableChunkMap.put(fileNumStr, newChunkMap);
+		}else{
+		    chunkMap.Mark(chunkNum);
+		    numOfAvailableChunks=chunkMap.numMarked();
+		}
+		BitMap needChunkMap=EE579Activity.neededChunkMap.get(fileNumStr);
+		needChunkMap.Clear(chunkNum);
+		if(needChunkMap.numMarked()==0){
+		    EE579Activity.neededChunkMap.remove(fileNumStr);
+		}
+		
+		EE579Activity.getFileNeeded();
+		int numOfChunks=EE579Activity.numOfChunks.get(fileNumStr);
+		if(numOfAvailableChunks==numOfChunks){
+		    CombineFile cf=new CombineFile(fileNumStr);
+		    cf.start();
+		}
+		EE579Activity.updateRecord();
+	    }else if(packet.getMessageType()==7&&packet.getMessage().equals("None")){
+		if(EE579Activity.fileNeeded!=null&&EE579Activity.fileNeeded!="")
+		    sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
+		else{
+		    sendMessage(7,0,0,"Exit".getBytes());
+		}
+	    }else if(packet.getMessageType()==7&&packet.getMessage().equals("Exit")){
+		showMessage("Client: All available files have been transmitted.");
 		break;
 	    }else{
 		showMessage("Error: Wrong Packet from Client.");

@@ -279,8 +279,14 @@ public class EE579Activity extends Activity implements ChannelListener{
         }
         return;
     }
+
     
-/*    static HashMap<String, HashMap<String, Boolean>> availableFileChunks= new HashMap<String, HashMap<String, Boolean>>();
+/* The following part is pure Hash Table solution.
+ * It will maintain a HashTable for the Files it has and each File also has a HashTable of chunk list.
+ * 
+ * 
+ * 
+    static HashMap<String, HashMap<String, Boolean>> availableFileChunks= new HashMap<String, HashMap<String, Boolean>>();
     static HashMap<String, HashMap<String, Boolean>> neededFileChunks= new HashMap<String, HashMap<String, Boolean>>();
     void initialization(){
 	File listFile=new File("/sdcard/ee579filelist.txt");
@@ -381,7 +387,10 @@ public class EE579Activity extends Activity implements ChannelListener{
 	    showMessage("IO Error.");
 	}
     }*/
-    
+
+    /* The following part is a Hash Table + BitMap solution.
+     * A hash table maintain the info of all available files and each file maintain its chunk list using a bitmap.
+     * */
     public static HashMap<String, BitMap> availableChunkMap= new HashMap<String, BitMap>();
     public static HashMap<String, BitMap> neededChunkMap= new HashMap<String, BitMap>();
     void initialization(){
@@ -485,4 +494,56 @@ public class EE579Activity extends Activity implements ChannelListener{
 	    Log.d("EE579","IO Error.");
 	}
     }
+    
+    /* The following part is Bloom Filter implementation. 
+     * */
+/*    public static BloomFilter availableChunks=new BloomFilter();
+    void initialization(){
+	File listFile=new File("/sdcard/ee579filelist.txt");
+	try {
+	    if(!listFile.exists()){
+		showMessage("Fatal Error: Config file not found.");
+		return;
+	    }
+	    BufferedReader inputReader = new BufferedReader(new FileReader(listFile));
+	    String buffer = new String(); 
+	    while((buffer=inputReader.readLine())!=null){  
+		String [] fileInfo= buffer.split(",");		
+		allFileList.put(fileInfo[0], fileInfo[1]);
+		int num=divRoundUp(Integer.parseInt(fileInfo[2]),BYTESPERCHUNK);
+		numOfChunks.put(fileInfo[0],num);
+		File oneFile= new File("/sdcard/ee579/"+fileInfo[1]);
+		if(oneFile.exists()){
+		    for(int i=0;i<num;i++){
+			availableChunks.mark(fileInfo[0]+"-"+i);
+		    }
+		}
+	    }
+	    inputReader.close();
+	    File oneFile= new File("/sdcard/ee579/tmp");
+	    if(oneFile.exists()){
+		File[] files=oneFile.listFiles();
+		for(int i=0;i<files.length;i++){
+		    String fileName= files[i].getName().split("\\.")[0];
+		    availableChunks.mark(fileName);
+		}
+	    }
+	}catch(IOException e){
+	    showMessage("IO Error: "+e.toString());
+	}
+    }
+    public static String getFileNeeded(){
+	String result=new String();
+	Set<String>files= allFileList.keySet();
+	Iterator<String> it=files.iterator();
+	while(it.hasNext()){
+	    String buffer=it.next();
+	    for(int i=0;i<numOfChunks.get(buffer);i++){
+		if(!availableChunks.test(buffer+"-"+i)){
+		    result+=buffer+"-"+i+",";
+		}
+	    } 
+	}
+	return result;	
+    }*/
 }

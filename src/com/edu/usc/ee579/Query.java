@@ -1,18 +1,19 @@
 package com.edu.usc.ee579;
 
-import java.util.HashMap;
-
+import java.util.ArrayList;
 import android.util.Log;
 
 public class Query{
     
     //function for the server to check whether it has the files or chunks needed.
-    public static HashMap<String,String> checkAvailablility(String listStr){
-	HashMap<String,String> result=new HashMap<String,String>();
+    public static ArrayList<String> checkAvailablility(String listStr){
+	ArrayList<String> result=new ArrayList<String>();
 	String[] buffer=listStr.split(",");
 	int count=0;
 	//check the availability using hash table.
-/*	for(int i=0;i<buffer.length;i=i+2){
+	/*Query method for pure hashtable implementation	
+	 * 
+	 * for(int i=0;i<buffer.length;i=i+2){
 	    if(EE579Activity.availableFileChunks.get(buffer[i])!=null){
 		HashMap<String,Boolean> chunkTable=EE579Activity.availableFileChunks.get(buffer[i]);
 		String[] chunkList=buffer[i+1].split("+");
@@ -24,6 +25,17 @@ public class Query{
 		}
 	    }
 	}*/
+	
+	/*Query method for BloomFolter solution
+	 * 
+       for(int i=0;i<buffer.length;i++){
+          if(EE579Activity.availableChunk.test(buffer[i])){
+          	result.add(buffer[i]);
+          	count++;
+      		}
+       } */
+	
+	
 	BitMap chunkMap;
 	BitMap needChunkMap;
 	for(int i=0;i<buffer.length;i=i+2){
@@ -36,7 +48,7 @@ public class Query{
 		}
 		for(int j=0;j<chunkMap.length();j++){
 		    if(needChunkMap.Test(j)&&chunkMap.Test(j)){
-			result.put(buffer[i]+","+new Integer(j).toString(), buffer[i]);
+			result.add(buffer[i]+","+new Integer(j).toString());
 			count++;
 		    }
 		}
