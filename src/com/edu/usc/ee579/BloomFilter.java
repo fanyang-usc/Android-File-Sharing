@@ -9,29 +9,35 @@ public class BloomFilter {
 
     private SimpleHash[] func = new SimpleHash[seeds.length];
 
+    //we will use the default parameter to calculate the hash function.
     public BloomFilter() {
 	for (int i = 0; i < seeds.length; i++){
 	    func[i] = new SimpleHash(SIZE, seeds[i]);
 	}
     }
 
+    //set the corresponding bits to 1 according to the hash value of the string
     public void mark(String value){
 	for (SimpleHash f : func){
 	    bits.set(f.hash(value), true);
 	}
     }
 
+    //check if all the bits are set to 1 according to the hash value of the string, if true then the string exist.
     public boolean test(String value){
 	if (value == null){
 	    return false;
 	}
-	boolean ret = true;
+	boolean result = true;
 	for (SimpleHash f : func){
-	    ret = ret && bits.get(f.hash(value));
+	    result = result && bits.get(f.hash(value));
 	}
-	return ret;
+	return result;
     }
 
+    //The Hash functions used for the bloomfilter.
+    //You can change this to better suit your set of value.
+    //the hash function use here is: result = seed * result + value.charAt(i);
     public static class SimpleHash{
 	private int cap;
 	private int seed;

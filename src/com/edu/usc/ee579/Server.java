@@ -23,6 +23,7 @@ public class Server extends AsyncTask<Void, Void, String> {
     private InputStream inFromClient = null;
     Handler myHandler=null;
 
+    //constructor, need a handler to be able to show message on UI thread
     public Server(Handler myHandler) {
 	this.myHandler=myHandler;
     }
@@ -32,6 +33,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	this.myHandler=myHandler;
     }
 
+    // initialization method, create server socket, listen accept client and get streams
     private boolean initializeServer(int serverPort) {
 	try {
 	    //create serversocket
@@ -60,6 +62,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	return true;
     }
 
+    // close connection
     public boolean closeConnection() {
 	try {
 	    serverSocket.close();
@@ -79,7 +82,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	return;
     }
 
-    //function for file transfer
+    // show message on screen and send it out, similar with client code
     public void sendMessage(int msgType, int fileNum, int chunkNum, byte[] msg){
 	if(msgType==7&&new String(msg).equals("None")){
 	    showMessage("Server: Don't have any file available.");
@@ -116,7 +119,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 	}
     }
 
-    //use asynctask to do the client/server. All functions are done in background
+    //use asynctask to do the client/server. All functions are done in background thread
     @Override
     protected String doInBackground(Void... arg0) {
 	//initialize server
@@ -131,15 +134,29 @@ public class Server extends AsyncTask<Void, Void, String> {
 		showMessage("Server Error.");
 		break;
 	    }
-	    //respond accordingly to the message get from client
+	    //respond accordingly to the message get from client, the functions are similar with client side code.
+	    //please reference the notations from client.java
 	    if(packet.getMessageType()==1){
-		showMessage("Client: The Files I need are "+packet.getMessage());
+		String msgStr=new String(packet.getMessage());
+		String[] msgbuffer=msgStr.split(",");
+		String message="Client: The files I need are: ";
+		int j=0;
+		for(int i=0;i<msgbuffer.length;i++){
+		    if(j++!=0) message+=",";
+		    message+=msgbuffer[i++];
+		}
+		showMessage(message);
 		ArrayList<String> result=Query.checkAvailablility(packet.getMessage());
 		if(result==null){
 		    sendMessage(7,0,0,"None".getBytes());
-		    break;
+		    if(EE579Activity.fileNeeded!=null&&!EE579Activity.fileNeeded.equals(""))
+			sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
+		    else{
+			sendMessage(7,0,0,"Exit".getBytes());
+			break;
+		    }
 		}
-		else{	    
+		else{	   
 		    while(result.size()!=0){
 			int numOfChunks=result.size();
 			String chunkInfo=new String();
@@ -154,12 +171,24 @@ public class Server extends AsyncTask<Void, Void, String> {
 			String chunkNum=fileDetail[1];		
 			File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNum));
 			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
-			int numOfBytesRead=0;
+			int numOfBytesRead=0;			
 			try {
-			    FileInputStream in=new FileInputStream(file);
-			    in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
-			    numOfBytesRead=in.read(buffer);
-			    in.close();
+			    if(!file.exists()){
+				file= new File("/sdcard/ee579/tmp/"+fileNum+"-"+chunkNum+".tmp");
+				FileInputStream in=new FileInputStream(file);	
+				numOfBytesRead=in.read(buffer);
+				in.close();
+			    }else{
+				FileInputStream in=new FileInputStream(file);
+				in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
+				numOfBytesRead=in.read(buffer);
+				in.close();
+			    }
+			    if(numOfBytesRead==-1){
+				showMessage("Empty file.");
+				return null;
+			    }
+			    
 			}catch (FileNotFoundException e) {
 			    showMessage("No such File");
 			}catch (IOException e) {
@@ -173,10 +202,11 @@ public class Server extends AsyncTask<Void, Void, String> {
 			    sendMessage(2,Integer.parseInt(fileNum),Integer.parseInt(chunkNum),buffer);
 			}
 		    }
-		    if(EE579Activity.fileNeeded!=null&&EE579Activity.fileNeeded!="")
+		    if(EE579Activity.fileNeeded!=null&&!EE579Activity.fileNeeded.equals(""))
 			sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
 		    else{
 			sendMessage(7,0,0,"Exit".getBytes());
+			break;
 		    }
 		}
 	    }else if(packet.getMessageType()==2){	
@@ -227,6 +257,7 @@ public class Server extends AsyncTask<Void, Void, String> {
 		    sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
 		else{
 		    sendMessage(7,0,0,"Exit".getBytes());
+		    break;
 		}
 	    }else if(packet.getMessageType()==7&&packet.getMessage().equals("Exit")){
 		showMessage("Client: All available files have been transmitted.");

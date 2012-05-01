@@ -19,6 +19,9 @@ public class Packet{
     private final int CHUNKNUMLENGTH =4;
     private final int HEADERLEG=MSGTYPELENGTH+TOTALLENLENGTH+FILENUMLENGTH+CHUNKNUMLENGTH+MSGLEN_LENGTH;
 
+    // this is the constructor of a packet, referenced from my diagnostic test project code.
+    // packet contains header and message, header indicate the length of the packet and the msg. 
+    // also stores the file number and chunk number of the data if it is a data packet.
     public Packet(int msgType, int fileNum, int chunkNum, byte[] msg) {
 	this.msg = msg;
 	this.msgType=msgType;
@@ -43,6 +46,7 @@ public class Packet{
     public Packet() {
     }
 
+    // the getters 
     public int getMessageType() {
 	return msgType; 
     }
@@ -68,11 +72,13 @@ public class Packet{
     public int getChunkNum(){
 	return chunkNum;
     }
-    
+  
+    // read bytes from stream and use the data to build a packet.
     public boolean readPacket(InputStream inFromBuffer) {
 	try {
-	    packet=new byte[20];
-	    int numOfByteRead=inFromBuffer.read(packet,0,20);
+	    // read header and get the msg type, length of packet and msg as well as file & chunk number
+	    packet=new byte[HEADERLEG];
+	    int numOfByteRead=inFromBuffer.read(packet,0,HEADERLEG);
 	    byte[] msgTypeByte= new byte[4];
 	    byte[] msgLenByte= new byte[4];
 	    byte[] totalLenByte= new byte[4];
@@ -88,6 +94,8 @@ public class Packet{
 	    msgLength=bytesToInt(msgLenByte);
 	    fileNum=bytesToInt(fileNumByte);
 	    chunkNum=bytesToInt(chunkNumByte);
+	    
+	    // read more bytes from the stream according to the msg length from the header.
 	    msg=new byte[msgLength];
 	    int totalNumOfByteRead=0;	    
 	    while(totalNumOfByteRead!=msgLength){
@@ -100,6 +108,7 @@ public class Packet{
 	return true;
     }
     
+    // send packet. packet is a byte stream, send it out to the output stream
     public boolean sendPacket(OutputStream out){
 	try {
 	    out.write(packet);

@@ -54,6 +54,7 @@ public class EE579Activity extends Activity implements ChannelListener{
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        // create the app folder if doesn't exit and do the initialization work.
         File file= new File("/sdcard/ee579");
         if(!file.exists()) file.mkdirs();
         initialization();
@@ -73,18 +74,18 @@ public class EE579Activity extends Activity implements ChannelListener{
     }
     /** register the BroadcastReceiver with the intent values to be matched */
     @Override
-    public void onResume() {
+    public void onResume() { // register the receiver on resume
         super.onResume();
         registerReceiver(receiver, intentFilter);
     }
 
     @Override
-    public void onPause() {
+    public void onPause() {  // unregister on pause
         super.onPause();
         unregisterReceiver(receiver);
     }
     
-    //create option menu. now there is only a close button. may add more in the future.
+    //create option menu. a directory browser and a close
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
@@ -94,16 +95,16 @@ public class EE579Activity extends Activity implements ChannelListener{
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case R.id.exit: 
+            case R.id.exit: 			// close button. do the clean up work
         	disconnect();
         	cancelDisconnect();
         	unregisterReceiver(receiver);
         	this.finish();
         	System.exit(0);
         	return true;
-            case R.id.folder:
+            case R.id.folder:			// directory browser
         	Intent browseFolder= new Intent(this,BrowserFolder.class);
-        	startActivity(browseFolder);
+        	startActivity(browseFolder);	// open directory browser in a new activity
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -154,6 +155,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 	                .findFragmentById(R.id.devicelist);
 	fragment.onInitiateDiscovery();
 	fragment.getView().setVisibility(View.VISIBLE);
+	// use dicoverpeers to find peers. to get the peer list, call request peers on success
 	manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
              @Override
              public void onSuccess() {
@@ -236,7 +238,7 @@ public class EE579Activity extends Activity implements ChannelListener{
         return;
     }
     
-    //prevent channel lose
+    // prevent channel lose. if lost, try to create it again.
     @Override
     public void onChannelDisconnected() {
         if (manager != null && !retryChannel) {
@@ -397,34 +399,43 @@ public class EE579Activity extends Activity implements ChannelListener{
 	File listFile=new File("/sdcard/ee579filelist.txt");
 	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
 	try {
-	    if(!listFile.exists()){
+	    if(!listFile.exists()){	// need to have a config file list all files available
 		showMessage("Fatal Error: Config file not found.");
 		return;
 	    }
 	    BufferedReader inputReader = new BufferedReader(new FileReader(listFile));
 	    String buffer = new String(); 
+	    // read from the config file to get the file info for all the possible files.
+	    // store them in a hashtable with number-filename pairs and number-number of chunks pair.
 	    while((buffer=inputReader.readLine())!=null){  
 		String [] fileInfo= buffer.split(",");		
 		allFileList.put(fileInfo[0], fileInfo[1]);
 		int num=divRoundUp(Integer.parseInt(fileInfo[2]),BYTESPERCHUNK);
 		numOfChunks.put(fileInfo[0],num);
+		// if the files on the list exist on the phone. record them on a hashtable-bitmap.
+		// can check this to see if it has the file or not when there are requests
 		File oneFile= new File("/sdcard/ee579/"+fileInfo[1]);
 		if(oneFile.exists()){
 		    BitMap chunkMap= new BitMap(num);
 		    for(int i=0;i<num;i++) chunkMap.Mark(i);
-		    availableChunkMap.put(fileInfo[0], chunkMap);
+		    availableChunkMap.put(fileInfo[0], chunkMap);			    
 		}
 	    }
 	    inputReader.close();
 	    recordFile.createNewFile();
+	    // read records from the record file. if there is no record file, create one.
+	    // the records file keep records about available chunks. update the file whenever received a new chunk.
 	    inputReader=new BufferedReader(new FileReader(recordFile));
 	    while((buffer=inputReader.readLine())!=null){  
 		String [] fileInfo= buffer.split(",");	
 		if(availableChunkMap.get(fileInfo[0])!=null){
+		    // if we have already had the record about this file skip it.
 		    buffer=inputReader.readLine();
 		    continue;
 		}
-		if((buffer=inputReader.readLine())!=null){		    
+		if((buffer=inputReader.readLine())!=null){	
+		    // the record file keep the record as "file number+chunk bitmap record"
+		    // so read the bitmap as string and create a bitmap and store it in the hashtable
 		    BitMap chunkMap= new BitMap(buffer);
 		    if(chunkMap.length()!=numOfChunks.get(fileInfo[0])){
 			showMessage("Error: BitMap length not correct");
@@ -434,17 +445,22 @@ public class EE579Activity extends Activity implements ChannelListener{
 		}
 	    }
 	    inputReader.close();
+	    // calculate all files needed according to all possible files and all available files
 	    Set<String>files= allFileList.keySet();
 	    Iterator<String> it=files.iterator();
 	    while(it.hasNext()){
 		buffer=it.next();
 		if(availableChunkMap.get(buffer)==null){
+		    // if the file number is not in the available file record, the whole file is missing
+		    // create a bitmap and clear all bits and store it in the need map
 		    BitMap chunkMap=new BitMap(numOfChunks.get(buffer));
 		    for(int i=0;i<numOfChunks.get(buffer);i++){
 			chunkMap.Mark(i);
 		    }
 		    neededChunkMap.put(buffer, chunkMap);
 		}else{
+		    // if the file number is in the record, then the whole file or at least some chunks are available
+		    // create a bitmap, check which chunk is unavailable, and mark the bit.
 		    BitMap chunkMap=availableChunkMap.get(buffer);
 		    if(chunkMap.numMarked()==numOfChunks.get(buffer)) continue;
 		    BitMap neededChunk= new BitMap(numOfChunks.get(buffer));
@@ -461,6 +477,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 	}	
     }
     
+    // get the file needed in string from the need chunk map. in the form of "file number, bitmap in string, .."
     public static String getFileNeeded(){
 	String result=new String();
 	Set<String> files=neededChunkMap.keySet();
@@ -476,6 +493,8 @@ public class EE579Activity extends Activity implements ChannelListener{
 	return result;	
     }
     
+    // update the record file with the current available chunk map. the map is updated whenever a new chunk is received
+    // so this will keep the record file with latest info about which chunks are available
     public static void updateRecord(){
 	File recordFile=new File("/sdcard/ee579bitmaprecord.txt");
 	try {
@@ -484,6 +503,7 @@ public class EE579Activity extends Activity implements ChannelListener{
 	    Iterator<String> it=files.iterator();
 	    while(it.hasNext()){
 		String buffer=it.next();
+		// write out the file number+ file name, and the bitmap of that file as string.
 		outputWriter.write(buffer+","+allFileList.get(buffer)+"\n");
 		BitMap chunkMap=availableChunkMap.get(buffer);
 		outputWriter.write(chunkMap.toString()+"\n");

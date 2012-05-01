@@ -78,6 +78,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
         myContentView.findViewById(R.id.connect).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+        	// connect function, need a wifip2pconfig with the device address set.
                 WifiP2pConfig config = new WifiP2pConfig();
                 config.deviceAddress = device.deviceAddress;
                 config.wps.setup = WpsInfo.PBC;
@@ -98,6 +99,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
             }
         });
 
+        //disconnect button.
         myContentView.findViewById(R.id.disconnect).setOnClickListener(
                 new View.OnClickListener() {
                     @Override

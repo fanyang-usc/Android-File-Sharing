@@ -25,6 +25,8 @@ public class Client extends AsyncTask<Void, Void, String>{
     private int serverPort=0;
     Handler myHandler=null;
 
+    // constructor. need to specify the ip and port. 
+    // also need a handler instance to be able to show message on UI thread
     public Client(String serverIP, int serverPort, Handler myHandler) {
 	this.serverIP=serverIP;
 	this.serverPort=serverPort;
@@ -33,10 +35,10 @@ public class Client extends AsyncTask<Void, Void, String>{
     
     private boolean initializeClient(String serverIP, int serverPort) {
 	try {
-	    //create socket and connect to server. try several times in case client start first.
+	    //create socket and connect to server. get input/ouput streams
+	    //try several times in case client start first.
 	    numberOfTry++;
 	    clientSocket = new Socket(serverIP, serverPort); 
-	    //showMessage("Client: Socket created.");
 	    outToServer = clientSocket.getOutputStream();   
 	    inFromServer =  clientSocket.getInputStream();
 	    return true;
@@ -50,7 +52,7 @@ public class Client extends AsyncTask<Void, Void, String>{
 	}
     }
 
-    
+    // method to show message on UI thread
     public void showMessage(String str){
 	//str.replace('\n', '\0');
 	Message msg=new Message();
@@ -59,6 +61,7 @@ public class Client extends AsyncTask<Void, Void, String>{
 	return;
     }
     
+    // method to close the connection
     public boolean closeConnection() {
 	try {
 	    clientSocket.close();
@@ -68,11 +71,10 @@ public class Client extends AsyncTask<Void, Void, String>{
 	    return false;
 	}
     }
-    
-    
-    //send message to server and show on screen
+       
+    // send message to server and show the message on screen
     public void sendMessage(int msgType, int fileNum, int chunkNum, byte[] msg){ 
-	if(msgType==1){
+	if(msgType==1){						// type1, the file and chunk need
 	    String msgStr=new String(msg);
 	    String[] buffer=msgStr.split(",");
 	    String message="Client: The files I need are: ";
@@ -82,22 +84,21 @@ public class Client extends AsyncTask<Void, Void, String>{
 		message+=buffer[i++];
 	    }
 	    showMessage(message);
-	}else if(msgType==7&&new String(msg).equals("None")){
+	}else if(msgType==7&&new String(msg).equals("None")){	// type7, indicate no file need
 	    showMessage("Client: Don't have any file needed.");
-	}else if(msgType==7&&new String(msg).equals("Nofile")){
-	    showMessage("Client: Don't have any file available to transmit.");
-	}else if(msgType==7&&new String(msg).equals("Exit")){
+	}else if(msgType==7&&new String(msg).equals("Exit")){	// type7, transmission done, exit
 	    showMessage("Client: All available files have been transmitted.");
-	}else if(msgType==2){
+	}else if(msgType==2){					// type2, data message
 	    showMessage("Client: Transfering File No."+fileNum+" Chunk No."+chunkNum);
 	}
+	// create a packet with the message and send it out.
 	Packet packet=new Packet(msgType, fileNum, chunkNum, msg);
 	if(!packet.sendPacket(outToServer)){
 	    showMessage("Client Error: Send Message Error.");
 	}
     }
     
-    //read from server and cast into packet
+    // read from server input stream and cast into packet
     public Packet readMessage(){  
 	Packet packet=new Packet();
 	if(packet.readPacket(inFromServer)){
@@ -108,55 +109,84 @@ public class Client extends AsyncTask<Void, Void, String>{
 	    return null;
 	}
     }
-    //communicate with server in background. check files and chunks needed and whether the server has them.
+    
+    //communicate with server in background thread. check files and chunks needed and whether the server has them.
     @Override
     protected String doInBackground(Void... arg0) {
 	if(!initializeClient(serverIP, serverPort)){
 	    showMessage("Client Error.");
 	    return null;
 	}
-	//checkFileNeed()
+	//checkFileNeed(), see if there are files needed, if yes, send the request to server.
 	if(EE579Activity.fileNeeded!=null&&EE579Activity.fileNeeded!="")
 	    sendMessage(1,0,0,EE579Activity.fileNeeded.getBytes());
 	else{
 	    sendMessage(7,0,0,"None".getBytes());
 	}
+	// waiting server message and respond accordingly
 	while(true){
-	    Packet packet=readMessage();
+	    Packet packet=readMessage();	// read a packet from server
 	    if(packet==null){
 		showMessage("No Packet Available.");
 		break;
 	    }
-	    if(packet.getMessageType()==1){
-		showMessage("Server: The Files I need are "+packet.getMessage());
+	    if(packet.getMessageType()==1){	
+		// if it is a message that specify the file need, display it.
+		String msgStr=new String(packet.getMessage());
+		String[] msgbuffer=msgStr.split(",");
+		String message="Server: The files I need are: ";
+		int j=0;
+		for(int i=0;i<msgbuffer.length;i++){
+		    if(j++!=0) message+=",";
+		    message+=msgbuffer[i++];
+		}
+		showMessage(message);
+		// check whether it has the files the other end need, if not, exit
 		ArrayList<String> result=Query.checkAvailablility(packet.getMessage());
 		if(result==null){
 		    sendMessage(7,0,0,"Exit".getBytes());
 		    break;
 		}
-		else{	    
+		else{	 // if yes, start the data transmission   
 		    while(result.size()!=0){
 			int numOfChunks=result.size();
 			String chunkInfo=new String();
+			// transmit a random chunk, get the chunk number and file number from the list and remove it 
 			int index=new Random().nextInt(1000000)%numOfChunks;
 			chunkInfo=result.get(index);
 			result.remove(index);			
-			String[] fileDetail= chunkInfo.split("\\,");
+			String[] fileDetail= chunkInfo.split("\\,"); // the info stored in the list is "filenum,chunknum"
 			String fileNum=fileDetail[0];
-			String chunkNum=fileDetail[1];		
+			String chunkNum=fileDetail[1];	
+			// if it has the entire file, use that file to get the particular chunk, 
+			// if not, get the chunk from tmp directory with name "filenum-chunknum.tmp"
+			// read at most BYTESPERCHUNK number of bytes
 			File file= new File("/sdcard/ee579/"+EE579Activity.allFileList.get(fileNum));
 			byte[] buffer=new byte[EE579Activity.BYTESPERCHUNK];
 			int numOfBytesRead=0;
 			try {
-			    FileInputStream in=new FileInputStream(file);
-			    in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
-			    numOfBytesRead=in.read(buffer);
-			    in.close();
+			    if(!file.exists()){
+				file= new File("/sdcard/ee579/tmp/"+fileNum+"-"+chunkNum+".tmp");
+				FileInputStream in=new FileInputStream(file);
+				numOfBytesRead=in.read(buffer);
+				in.close();
+			    }else{
+				FileInputStream in=new FileInputStream(file);
+				in.skip(Integer.parseInt(chunkNum)*EE579Activity.BYTESPERCHUNK);
+				numOfBytesRead=in.read(buffer);
+				in.close();
+			    } 
+			    if(numOfBytesRead==-1){
+				showMessage("Empty file.");
+				return null;
+			    }
+			    
 			}catch (FileNotFoundException e) {
 			    showMessage("No such File");
 			}catch (IOException e) {
 			    showMessage("IO Error.");
 			}
+			// if the actual number of bytes read is not BYTESPERCHUNK, send the actual number of bytes out
 			if(numOfBytesRead!=EE579Activity.BYTESPERCHUNK){
 			    byte[] msg=new byte[numOfBytesRead];
 			    for(int i=0;i<numOfBytesRead;i++) msg[i]=buffer[i];
@@ -168,13 +198,14 @@ public class Client extends AsyncTask<Void, Void, String>{
 		    sendMessage(7,0,0,"Exit".getBytes());
 		    break;
 		}
-	    }
-	    else if(packet.getMessageType()==2){	
+	    }else if(packet.getMessageType()==2){	// message type2, data message.
+		// get the filenumber and chunk number of the data.
 		int fileNum=packet.getFileNum();
 		int chunkNum=packet.getChunkNum();
 		String fileNumStr=new Integer(fileNum).toString();
 		String chunkNumStr=new Integer(chunkNum).toString();
 		showMessage("Client: Get file No."+fileNum+" chunk No."+chunkNum);
+		// create a tmp file in tmp directory to save the data
 		File tmpFolder= new File("/sdcard/ee579/tmp/");
 		File tmpFile= new File("/sdcard/ee579/tmp/"+fileNumStr+"-"+chunkNumStr+".tmp");
 		try {
@@ -212,16 +243,21 @@ public class Client extends AsyncTask<Void, Void, String>{
 		*/
 		
 		/*HashTable+Bitmap solution*/
+		// update the record hashtable which store the available chunks
 		BitMap chunkMap=EE579Activity.availableChunkMap.get(fileNumStr);
 		if(chunkMap==null){
+		    // if this is the first chunk ever for the particular file. 
+		    //create a new bitmap and mark the corresponding bit and store it in the hashtable
 		    numOfAvailableChunks=1;
 		    BitMap newChunkMap=new BitMap(EE579Activity.numOfChunks.get(fileNumStr));
 		    newChunkMap.Mark(chunkNum);
 		    EE579Activity.availableChunkMap.put(fileNumStr, newChunkMap);
 		}else{
+		    // else update the bitmap
 		    chunkMap.Mark(chunkNum);
 		    numOfAvailableChunks=chunkMap.numMarked();
 		}
+		// update the hashtable and bitmap for chunk needed
 		BitMap needChunkMap=EE579Activity.neededChunkMap.get(fileNumStr);
 		needChunkMap.Clear(chunkNum);
 		if(needChunkMap.numMarked()==0){
@@ -229,16 +265,16 @@ public class Client extends AsyncTask<Void, Void, String>{
 		}
 		
 		//common codes for both implementation.
-		EE579Activity.getFileNeeded();
+		//EE579Activity.fileNeeded=EE579Activity.getFileNeeded();
 		int numOfChunks=EE579Activity.numOfChunks.get(fileNumStr);
 		if(numOfAvailableChunks==numOfChunks){
+		    // if it is the last missing chunk, need to combine all chunks back to one single file
 		    CombineFile cf=new CombineFile(fileNumStr);
 		    cf.start();
 		}
-		EE579Activity.updateRecord();
+		EE579Activity.updateRecord();	// update the record in the config file
 	    }else if(packet.getMessageType()==7&&packet.getMessage().equals("None")){
 		showMessage("Server: Don't have any file available");
-		break;
 	    }else if(packet.getMessageType()==7&&packet.getMessage().equals("Exit")){
 		showMessage("Server: All available files have been transmitted.");
 		break;
